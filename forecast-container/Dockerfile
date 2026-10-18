@@ -14,7 +14,7 @@ ENV PYTHONUNBUFFERED=1 \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Приложение и модель (файл модели должен быть обучен до сборки)
+# Приложение и модель (обученная модель уже лежит в model/)
 COPY app/ ./app/
 COPY model/ ./model/
 
