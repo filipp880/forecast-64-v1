@@ -169,7 +169,8 @@ forecast-container/
 │   ├── make_samples.py       # генерация сэмплов из полных train-CSV
 │   ├── dump_backtest_raw.py  # дамп сырых компонент бленда по срезам (для лаборатории)
 │   ├── postproc_lab.py       # лаборатория постобработки: варианты «прогноз -> целые»
-│   └── rare_series_lab.py    # редкие серии: классы спроса, TSB/SBA, правило P_any_64
+│   ├── rare_series_lab.py    # редкие серии: классы спроса, TSB/SBA, правило P_any_64
+│   └── feature_lab.py        # признаки: база vs +5 recency-фич (base/ext на 8 срезах)
 └── tests/
     └── test_api.sh           # самопроверка всех эндпоинтов (10 проверок)
 ```
@@ -319,6 +320,7 @@ python scripts/dump_backtest_raw.py --model-dir model_blend   # логи и p/m/
 python scripts/dump_backtest_raw.py --model-dir model_blend --extra-model model_tweedie  # + колонка extra_raw
 python scripts/postproc_lab.py                                # отчёт logs/postproc_lab.json
 python scripts/postproc_lab.py --out logs/postproc_lab_catboost.json  # вариант с другой третьей компонентой (--extra-model model_catboost)
+python scripts/feature_lab.py                                 # база 28 признаков vs +5 recency, logs/feature_lab.json (~10 мин)
 ```
 
 Выводы стенда (2026-07): **текущая постобработка (gate 0.5 + округление)
@@ -353,7 +355,13 @@ python scripts/postproc_lab.py --out logs/postproc_lab_catboost.json  # вари
   (`logs/report_catboost.json`; лучший RMSLE 0.3190 среди одиночных моделей,
   но SMAPE хуже log1p-lgbm 28.64); в трёхкомпонентном бленде LOO выбирает
   ему вес 0.0 во всех 8 фолдах (вес 0.1 даёт 1.0008) — в ансамбль не
-  добавляется (`logs/postproc_lab_catboost.json`).
+  добавляется (`logs/postproc_lab_catboost.json`);
+- recency-признаки (доп. проверка: `mean_3`, `zero_share_7`, `n_sale_days_28`,
+  `max_28`, `trend_7_28`; `scripts/feature_lab.py`): композитный индекс
+  ext/base 1.0001, SMAPE-отношение 0.9999 — нейтрально; новые признаки не
+  входят в топ-10 по gain (длинные окна `mean_56/90/28` и категории уже
+  содержат эту информацию). Оба варианта упёрлись в лимит 1500 деревьев —
+  сравнение на равном бюджете; отклонено (`logs/feature_lab.json`).
 
 Диагностика стенда (в `logs/postproc_lab.json`): лосс сконцентрирован в
 пропущенных продажах (+/0 — 10.3% дней, каждый 200%) и ложных плюсах (0/+ —
