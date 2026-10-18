@@ -1,0 +1,17 @@
+# Данные (тяжёлые исходники — не в git)
+/data/*.csv
+/data/*.zip
+/data/*.7z
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Логи и артефакты прогонов
+*.log
+
+# Windows
+Thumbs.db
+desktop.ini
