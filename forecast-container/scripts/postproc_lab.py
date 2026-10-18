@@ -60,6 +60,7 @@ def load_cutoffs(raw_dir: Path) -> tuple[dict, list[dict]]:
                 "mean_28": frame["mean_28"].to_numpy("float64"),
                 "zero_share_90": frame["zero_share_90"].to_numpy("float64"),
                 "stock_last": frame["stock_last"].to_numpy("float64"),
+                "extra": frame["extra_raw"].to_numpy("float64") if "extra_raw" in frame.columns else None,
             }
         )
     return meta, data
@@ -208,6 +209,11 @@ def weight_families() -> dict[str, list[tuple[str, object]]]:
             ("h 8-28", lambda item: (item["h"] >= 8) & (item["h"] <= 28)),
             ("h 29-64", lambda item: item["h"] >= 29),
         ],
+        "horizon_doc": [
+            ("h 1-14", lambda item: item["h"] <= 14),
+            ("h 15-28", lambda item: (item["h"] >= 15) & (item["h"] <= 28)),
+            ("h 29-64", lambda item: item["h"] >= 29),
+        ],
         "mean_28": [
             (
                 f"m [{low:g}, {high:g})",
@@ -302,6 +308,137 @@ def tune_group_weights(meta: dict, data: list[dict], base_predictions: list[np.n
         for name, _ in groups:
             entry = group_report[name]
             print(f"  {name:<12} медианный w={entry['median_weight']:g}  по срезам: {entry['chosen_weights']}")
+    return report
+
+
+def smearing_variants(meta: dict, data: list[dict], base_predictions: list[np.ndarray]) -> dict:
+    """Duan smearing для log1p-компоненты: E[exp(resid)] (mean/median/trim10), LOO по срезам.
+
+    Для y_hat = exp(z) - 1 корректная оценка E[y] = exp(z_pred) * E[exp(resid)] - 1,
+    где resid = log1p(y) - z_pred, а E[exp(resid)] = mean((1 + y) / (1 + lgbm_raw)).
+    Множитель считается на 7 срезах и применяется к отложенному (LOO).
+    """
+    weight = float(meta["weight_hurdle"])
+    gate = float(meta["gate"])
+    gated_all = [gated(item, gate) for item in data]
+    lgbm_all = [item["lgbm"] for item in data]
+    y_all = [item["y"] for item in data]
+    baseline = evaluate(data, base_predictions)
+
+    report: dict = {}
+    for method in ("mean", "median", "trim10"):
+        folds: list[float] = []
+        predictions: list[np.ndarray] = []
+        for fold in range(len(data)):
+            ratios = np.concatenate(
+                [(y_all[j] + 1.0) / (lgbm_all[j] + 1.0) for j in range(len(data)) if j != fold]
+            )
+            if method == "mean":
+                factor = float(np.mean(ratios))
+            elif method == "median":
+                factor = float(np.median(ratios))
+            else:
+                low, high = np.quantile(ratios, [0.05, 0.95])
+                factor = float(np.mean(ratios[(ratios >= low) & (ratios <= high)]))
+            folds.append(factor)
+            lgbm_smeared = (lgbm_all[fold] + 1.0) * factor - 1.0
+            raw = weight * gated_all[fold] + (1.0 - weight) * lgbm_smeared
+            predictions.append(postprocess_forecast(raw, 0.0, True))
+        metrics = evaluate(data, predictions)
+        report[method] = {
+            "folds": folds,
+            "metrics": metrics,
+            "index": composite(metrics, baseline),
+        }
+    return report
+
+
+def three_way_weights(meta: dict, data: list[dict], base_predictions: list[np.ndarray]) -> dict | None:
+    """Пропорции трёх компонент (gated hurdle + lgbm_log + extra) — сетка + LOO по срезам.
+
+    Сетка шагом 0.1, сумма весов = 1 (66 комбинаций); для каждого среза метрики
+    считаются один раз, выбор комбинации — на 7 срезах, применение — к отложенному.
+    """
+    if any(item.get("extra") is None for item in data):
+        return None
+    weight = float(meta["weight_hurdle"])
+    gate = float(meta["gate"])
+    w_grid = tuple(round(0.1 * i, 1) for i in range(11))
+    combos: list[tuple[float, float, float]] = []
+    for a in w_grid:
+        for c in w_grid:
+            b = round(1.0 - a - c, 1)
+            if b < -1e-9:
+                continue
+            combos.append((a, max(c, 0.0), max(b, 0.0)))
+
+    gated_all = [gated(item, gate) for item in data]
+    lgbm_all = [item["lgbm"] for item in data]
+    extra_all = [item["extra"] for item in data]
+    all_rows = [np.ones(item["y"].shape[0], dtype=bool) for item in data]
+
+    metrics_cache: dict[tuple[float, float, int], dict] = {}
+    for a, c, b in combos:
+        for index in range(len(data)):
+            raw = a * gated_all[index] + b * lgbm_all[index] + c * extra_all[index]
+            metrics_cache[(a, c, index)] = subset_metrics(
+                data[index], postprocess_forecast(raw, 0.0, True), all_rows[index]
+            )
+
+    base_combo = (weight, 0.0)
+
+    def combo_index(combo: tuple[float, float], cutoffs: list[int]) -> float:
+        means = {
+            metric: float(np.mean([metrics_cache[(combo[0], combo[1], i)][metric] for i in cutoffs]))
+            for metric in METRIC_NAMES
+        }
+        base_means = {
+            metric: float(np.mean([metrics_cache[(base_combo[0], base_combo[1], i)][metric] for i in cutoffs]))
+            for metric in METRIC_NAMES
+        }
+        return composite(means, base_means)
+
+    folds: list[tuple[float, float, float]] = []
+    for fold in range(len(data)):
+        train = [i for i in range(len(data)) if i != fold]
+        best, best_index = combos[0], None
+        for combo in combos:
+            if (combo[0], combo[1], train[0]) not in metrics_cache:
+                continue
+            value = combo_index((combo[0], combo[1]), train)
+            if best_index is None or value < best_index:
+                best_index, best = value, combo
+        folds.append(best)
+
+    fold_metrics: dict[str, list[float]] = {metric: [] for metric in METRIC_NAMES}
+    for fold in range(len(data)):
+        a, c, b = folds[fold]
+        raw = a * gated_all[fold] + b * lgbm_all[fold] + c * extra_all[fold]
+        metrics = subset_metrics(
+            data[fold], postprocess_forecast(raw, 0.0, True), all_rows[fold]
+        )
+        for metric in METRIC_NAMES:
+            fold_metrics[metric].append(metrics[metric])
+    means = {metric: float(np.mean(values)) for metric, values in fold_metrics.items()}
+    top_full = sorted(
+        ((combo_index((combo[0], combo[1]), list(range(len(data)))), combo) for combo in combos),
+        key=lambda pair: pair[0],
+    )[:5]
+    report = {
+        "grid_combos": [list(combo) for combo in combos],
+        "folds": [list(combo) for combo in folds],
+        "loo_metrics": means,
+        "loo_index": composite(means, evaluate(data, base_predictions)),
+        "top_full_data": [
+            {"index": round(index, 4), "hurdle": combo[0], "lgbm": combo[2], "extra": combo[1]}
+            for index, combo in top_full
+        ],
+    }
+    print(f"\nТри компоненты (LOO по срезам): индекс {report['loo_index']:.4f} vs база 1.0")
+    print(f"  комбинации по фолдам (hurdle / lgbm / extra): {report['folds']}")
+    print("  лучшие на всех 8 срезах (для справки, оптимистично):")
+    for row in report["top_full_data"]:
+        print(f"    hurdle {row['hurdle']:g} + lgbm {row['lgbm']:g} + extra {row['extra']:g}: индекс {row['index']}")
     return report
 
 
@@ -410,6 +547,16 @@ def main(argv: list[str] | None = None) -> int:
 
     weight_report = tune_group_weights(meta, data, base_predictions)
 
+    smearing_report = smearing_variants(meta, data, base_predictions)
+    for label, entry in smearing_report.items():
+        m = entry["metrics"]
+        print(
+            f"smearing {label} (LOO): SMAPE {m['smape']:.2f} WAPE {m['wape']:.2f} RMSE {m['rmse']:.4f} "
+            f"Bias {m['bias']:.2f} RMSLE {m['rmsle']:.4f} индекс {entry['index']:.4f}"
+        )
+
+    three_way_report = three_way_weights(meta, data, base_predictions)
+
     segments = segment_block(data, base_predictions, "base") + segment_block(
         data, best_predictions, best_label
     )
@@ -447,6 +594,8 @@ def main(argv: list[str] | None = None) -> int:
         "confusion": confusion,
         "calibration": calibration,
         "weight_tuning": weight_report,
+        "smearing": smearing_report,
+        "three_way": three_way_report,
     }
     Path(args.out).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\nОтчёт сохранён: {args.out}")

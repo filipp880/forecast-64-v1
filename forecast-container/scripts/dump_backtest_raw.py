@@ -41,6 +41,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Выгрузка сырых компонент бленда для лаборатории постобработки")
     parser.add_argument("--model-dir", default="model_blend", help="Директория модели (ожидается blend)")
     parser.add_argument(
+        "--extra-model",
+        default=None,
+        help="Директория дополнительной модели (например, model_tweedie) — колонка extra_raw",
+    )
+    parser.add_argument(
         "--sales", default="../data/sales_dataset_hakaton_train.csv", help="CSV с продажами"
     )
     parser.add_argument(
@@ -67,6 +72,20 @@ def main(argv: list[str] | None = None) -> int:
     horizon = int(config.get("horizon", HORIZON))
     lookback = int(config.get("lookback_days", LOOKBACK_DAYS))
     print(f"Модель: {model_type} из {model_dir} (горизонт {horizon}, lookback {lookback})", flush=True)
+
+    extra_model = None
+    extra_transform = "log1p"
+    extra_dir = None
+    if args.extra_model:
+        extra_dir = Path(args.extra_model)
+        extra_config = json.loads((extra_dir / "config.json").read_text(encoding="utf-8"))
+        extra_type = str(extra_config.get("model_type", "lgbm"))
+        extra_cls = get_model_class(extra_type)
+        extra_model = extra_cls.load(
+            extra_dir / (extra_config.get("model_file") or f"model{extra_cls.file_suffix}")
+        )
+        extra_transform = str(extra_config.get("target_transform", "log1p"))
+        print(f"Доп. компонента: {extra_type} из {extra_dir} (transform {extra_transform})", flush=True)
 
     print("Загрузка данных...", flush=True)
     sales = pd.read_csv(args.sales, parse_dates=["date"])
@@ -96,6 +115,9 @@ def main(argv: list[str] | None = None) -> int:
         frame["p"] = np.asarray(probability, dtype="float32")
         frame["m"] = np.asarray(magnitude, dtype="float32")
         frame["lgbm_raw"] = np.asarray(lgbm_raw, dtype="float32")
+        if extra_model is not None:
+            extra_raw = inverse_target(extra_model.predict(features), extra_transform)
+            frame["extra_raw"] = np.asarray(extra_raw, dtype="float32")
         frame = frame.merge(truth, on=DATA_KEY, how="left")
         frame["quantity"] = frame["quantity"].fillna(0.0).astype("float32")
         frame["cutoff"] = cutoff.strftime("%Y-%m-%d")
@@ -120,6 +142,7 @@ def main(argv: list[str] | None = None) -> int:
         "lookback_days": lookback,
         "postprocess": config.get("postprocess") or {},
         "cutoffs": [str(cutoff.date()) for cutoff in cutoffs],
+        "extra_model_dir": str(extra_dir) if extra_dir else None,
     }
     (out_dir / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Метаданные: {out_dir / 'meta.json'}")

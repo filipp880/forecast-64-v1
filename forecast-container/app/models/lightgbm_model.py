@@ -20,12 +20,14 @@ import numpy as np
 import pandas as pd
 
 from ..features import CAT_FEATURES, FEATURE_COLUMNS
-from .base import BaseForecastModel, format_duration
+from .base import TARGET_TRANSFORMS, BaseForecastModel, format_duration
 
 try:
     import lightgbm as lgb
 except ImportError:  # модель не будет доступна, пока не установлен lightgbm
     lgb = None  # type: ignore[assignment]
+
+EXTRA_LGBM_PARAMS = ("objective", "tweedie_variance_power", "alpha")
 
 
 def iteration_progress_callback(period: int, total: int, label: str = ""):
@@ -56,7 +58,13 @@ def iteration_progress_callback(period: int, total: int, label: str = ""):
 
 
 class LightGBMForecastModel(BaseForecastModel):
-    """Регрессор на ``log1p(quantity)``; early stopping по окну отбора, refit — по ``n_iterations``."""
+    """Регрессор на LightGBM; early stopping по окну отбора, refit — по ``n_iterations``.
+
+    По умолчанию таргет — ``log1p(quantity)``, но ``target_transform`` можно
+    переопределить в ``params`` (``"none"`` + ``objective=poisson/tweedie`` —
+    модель на сырых счётчиках); ``objective``, ``tweedie_variance_power`` и
+    ``alpha`` из ``params`` пробрасываются в ``LGBMRegressor``.
+    """
 
     name = "lgbm"
     file_suffix = ".txt"
@@ -70,6 +78,12 @@ class LightGBMForecastModel(BaseForecastModel):
 
     def __init__(self, params: Optional[dict] = None) -> None:
         super().__init__(params)
+        transform = str(self.params.get("target_transform", "log1p"))
+        if transform not in TARGET_TRANSFORMS:
+            raise ValueError(
+                f"Неизвестное преобразование таргета: {transform!r} (есть: {TARGET_TRANSFORMS})"
+            )
+        self.target_transform = transform
         self.booster = None
         self._categories: dict[str, list[str]] = {}
         self._best_iteration: Optional[int] = None
@@ -125,6 +139,7 @@ class LightGBMForecastModel(BaseForecastModel):
             int(n_iterations) if n_iterations is not None else int(self.params["n_estimators"])
         )
         x = self._encode(x_train, fit=True)
+        extra = {key: self.params[key] for key in EXTRA_LGBM_PARAMS if key in self.params}
         model = lgb.LGBMRegressor(
             n_estimators=iterations,
             num_leaves=int(self.params["num_leaves"]),
@@ -139,6 +154,7 @@ class LightGBMForecastModel(BaseForecastModel):
             deterministic=bool(self.params.get("deterministic", True)),
             force_col_wise=bool(self.params.get("force_col_wise", True)),
             verbosity=int(self.params.get("verbosity", -1)),
+            **extra,
         )
         log_period = int(self.params.get("log_period", 200))
         progress = iteration_progress_callback(log_period, iterations)
@@ -162,7 +178,7 @@ class LightGBMForecastModel(BaseForecastModel):
                 y_train,
                 eval_X=self._encode(x_valid, fit=False),
                 eval_y=y_valid,
-                eval_metric="rmse",
+                eval_metric=str(self.params.get("eval_metric", "rmse")),
                 categorical_feature=CAT_FEATURES,
                 callbacks=callbacks,
             )

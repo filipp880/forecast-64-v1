@@ -153,7 +153,6 @@ def build_dataset(
 
 def evaluate_frame(
     model,
-    model_cls,
     frame: pd.DataFrame,
     zero_threshold: float = 0.0,
     round_int: bool = False,
@@ -166,7 +165,7 @@ def evaluate_frame(
     truth["quantity"] = frame["target"].to_numpy(dtype="float64")
     forecast = frame[["date", *KEY]].copy()
     forecast["quantity"] = postprocess_forecast(
-        inverse_target(model.predict(frame), model_cls.target_transform),
+        inverse_target(model.predict(frame), model.target_transform),
         zero_threshold=zero_threshold,
         round_int=round_int,
     )
@@ -394,8 +393,8 @@ def main(argv: list[str] | None = None) -> int:
         valid_select = build_dataset(panel, [select_cutoff], args.horizon, args.lookback)[0]
         valid_test = build_dataset(panel, [test_cutoff], args.horizon, args.lookback)[0]
 
-        y_train = transform_target(train["target"].to_numpy(dtype="float64"), model_cls.target_transform)
-        y_select = transform_target(valid_select["target"].to_numpy(dtype="float64"), model_cls.target_transform)
+        y_train = transform_target(train["target"].to_numpy(dtype="float64"), model.target_transform)
+        y_select = transform_target(valid_select["target"].to_numpy(dtype="float64"), model.target_transform)
 
         if args.early_stopping_rounds and not model_cls.supports_early_stopping:
             print(f"  прим.: модель '{model_cls.name}' не поддерживает early stopping — параметр пропущен")
@@ -414,7 +413,7 @@ def main(argv: list[str] | None = None) -> int:
 
         step(f"Метрики ТЗ на тестовом окне {test_cutoff.date() + day}..{last_date.date()}")
         metrics = evaluate_frame(
-            model, model_cls, valid_test, args.zero_threshold, args.round_int
+            model, valid_test, args.zero_threshold, args.round_int
         )
         detail = f"  (iterations={n_iterations})" if n_iterations is not None else ""
         print(
@@ -428,7 +427,7 @@ def main(argv: list[str] | None = None) -> int:
             step(f"Refit на всех срезах ({len(refit_cutoffs)} шт.) — боевая модель")
             refit_frames = build_dataset(panel, refit_cutoffs, args.horizon, args.lookback)
             refit = pd.concat(refit_frames, ignore_index=True)
-            y_refit = transform_target(refit["target"].to_numpy(dtype="float64"), model_cls.target_transform)
+            y_refit = transform_target(refit["target"].to_numpy(dtype="float64"), model.target_transform)
             refit_iterations = (
                 n_iterations
                 if n_iterations is not None
@@ -470,7 +469,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             train, valid = frames[0], None
 
-        y_train = transform_target(train["target"].to_numpy(dtype="float64"), model_cls.target_transform)
+        y_train = transform_target(train["target"].to_numpy(dtype="float64"), model.target_transform)
         step(
             f"Обучение: train {len(train):,} строк"
             + (f", valid {len(valid):,} строк" if valid is not None else "")
@@ -478,7 +477,7 @@ def main(argv: list[str] | None = None) -> int:
         if valid is not None:
             if args.early_stopping_rounds and not model_cls.supports_early_stopping:
                 print(f"  прим.: модель '{model_cls.name}' не поддерживает early stopping — параметр пропущен")
-            y_valid = transform_target(valid["target"].to_numpy(dtype="float64"), model_cls.target_transform)
+            y_valid = transform_target(valid["target"].to_numpy(dtype="float64"), model.target_transform)
             model.fit(
                 train,
                 y_train,
@@ -487,7 +486,7 @@ def main(argv: list[str] | None = None) -> int:
                 early_stopping_rounds=args.early_stopping_rounds,
             )
             metrics = evaluate_frame(
-                model, model_cls, valid, args.zero_threshold, args.round_int
+                model, valid, args.zero_threshold, args.round_int
             )
             valid_cutoff = valid["date"].min() - pd.Timedelta(days=1)
             max_horizon = int(valid["h"].max())
@@ -516,7 +515,7 @@ def main(argv: list[str] | None = None) -> int:
         pickle.dumps(
             {
                 **preprocessing_spec(),
-                "target_transform": model_cls.target_transform,
+                "target_transform": model.target_transform,
                 "trained_at": datetime.now().isoformat(timespec="seconds"),
             }
         )
@@ -528,7 +527,7 @@ def main(argv: list[str] | None = None) -> int:
         "preprocessor_file": preprocessor_path.name,
         "horizon": args.horizon,
         "lookback_days": args.lookback,
-        "target_transform": model_cls.target_transform,
+        "target_transform": model.target_transform,
         "postprocess": {
             "zero_threshold": args.zero_threshold,
             "round_int": args.round_int,
