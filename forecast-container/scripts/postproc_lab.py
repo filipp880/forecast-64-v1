@@ -435,7 +435,7 @@ def three_way_weights(meta: dict, data: list[dict], base_predictions: list[np.nd
         ],
     }
     print(f"\nТри компоненты (LOO по срезам): индекс {report['loo_index']:.4f} vs база 1.0")
-    print(f"  комбинации по фолдам (hurdle / lgbm / extra): {report['folds']}")
+    print(f"  комбинации по фолдам (hurdle / extra / lgbm): {report['folds']}")
     print("  лучшие на всех 8 срезах (для справки, оптимистично):")
     for row in report["top_full_data"]:
         print(f"    hurdle {row['hurdle']:g} + lgbm {row['lgbm']:g} + extra {row['extra']:g}: индекс {row['index']}")

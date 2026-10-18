@@ -318,6 +318,7 @@ Tweedie, Duan-smearing, горизонтные и сегментные веса)
 python scripts/dump_backtest_raw.py --model-dir model_blend   # логи и p/m/lgbm по срезам, ~100 c
 python scripts/dump_backtest_raw.py --model-dir model_blend --extra-model model_tweedie  # + колонка extra_raw
 python scripts/postproc_lab.py                                # отчёт logs/postproc_lab.json
+python scripts/postproc_lab.py --out logs/postproc_lab_catboost.json  # вариант с другой третьей компонентой (--extra-model model_catboost)
 ```
 
 Выводы стенда (2026-07): **текущая постобработка (gate 0.5 + округление)
@@ -346,7 +347,13 @@ python scripts/postproc_lab.py                                # отчёт logs/
 - Tweedie/Poisson на сырых счётчиках (Очередь 2, п.5): standalone-бэктест
   31.15/81.13/0.8532/91.12/0.3189 (`logs/report_tweedie.json`) — хуже
   log1p-lgbm; в трёхкомпонентном бленде LOO-оптимум выбирает ему вес 0.0
-  во всех 8 фолдах (плюс 0.1 даёт лишь 1.0015) — в ансамбль не добавляется.
+  во всех 8 фолдах (плюс 0.1 даёт лишь 1.0015) — в ансамбль не добавляется;
+- CatBoost (тот же log1p-таргет, но другой алгоритм; доп. проверка после
+  Очереди 2): standalone-бэктест 29.16/76.79/0.7906/91.86/0.3190
+  (`logs/report_catboost.json`; лучший RMSLE 0.3190 среди одиночных моделей,
+  но SMAPE хуже log1p-lgbm 28.64); в трёхкомпонентном бленде LOO выбирает
+  ему вес 0.0 во всех 8 фолдах (вес 0.1 даёт 1.0008) — в ансамбль не
+  добавляется (`logs/postproc_lab_catboost.json`).
 
 Диагностика стенда (в `logs/postproc_lab.json`): лосс сконцентрирован в
 пропущенных продажах (+/0 — 10.3% дней, каждый 200%) и ложных плюсах (0/+ —
