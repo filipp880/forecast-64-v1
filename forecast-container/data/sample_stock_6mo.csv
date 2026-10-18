@@ -96131,6 +96131,7 @@ date,warehouse_name,article,stock
 2026-06-28,warehouse_name_3,char_article_1,1
 2026-06-28,warehouse_name_3,char_article_13,13
 2026-06-28,warehouse_name_3,char_article_121,0
+2026-06-28,warehouse_name_3,char_article_130,-1
 2026-06-28,warehouse_name_3,char_article_103,4
 2026-06-28,warehouse_name_3,char_article_136,150
 2026-06-28,warehouse_name_3,char_article_104,3
@@ -114196,6 +114197,7 @@ date,warehouse_name,article,stock
 2026-07-21,warehouse_name_4,char_article_109,7
 2026-07-21,warehouse_name_4,char_article_128,5
 2026-07-21,warehouse_name_2,char_article_105,3
+2026-07-21,warehouse_name_4,char_article_117,-1
 2026-07-21,warehouse_name_4,char_article_112,0
 2026-07-21,warehouse_name_5,char_article_111,0
 2026-07-21,warehouse_name_5,char_article_103,0
@@ -115169,6 +115171,7 @@ date,warehouse_name,article,stock
 2026-07-22,warehouse_name_2,char_article_124,0
 2026-07-22,warehouse_name_4,char_article_11,35
 2026-07-22,warehouse_name_4,char_article_132,1
+2026-07-22,warehouse_name_4,char_article_117,-1
 2026-07-22,warehouse_name_4,char_article_112,0
 2026-07-22,warehouse_name_4,char_article_109,5
 2026-07-22,warehouse_name_2,char_article_110,0
@@ -115871,6 +115874,7 @@ date,warehouse_name,article,stock
 2026-07-23,warehouse_name_3,char_article_111,23
 2026-07-23,warehouse_name_4,char_article_109,7
 2026-07-23,warehouse_name_4,char_article_112,0
+2026-07-23,warehouse_name_4,char_article_117,-1
 2026-07-23,warehouse_name_4,char_article_135,2
 2026-07-23,warehouse_name_4,char_article_128,6
 2026-07-23,warehouse_name_10,char_article_140,0
@@ -116261,6 +116265,7 @@ date,warehouse_name,article,stock
 2026-07-24,warehouse_name_5,char_article_136,0
 2026-07-24,warehouse_name_5,char_article_103,0
 2026-07-24,warehouse_name_5,char_article_126,0
+2026-07-24,warehouse_name_5,char_article_106,-1
 2026-07-24,warehouse_name_5,char_article_123,0
 2026-07-24,warehouse_name_5,char_article_14,0
 2026-07-24,warehouse_name_5,char_article_130,0
@@ -116457,6 +116462,7 @@ date,warehouse_name,article,stock
 2026-07-24,warehouse_name_4,char_article_134,0
 2026-07-24,warehouse_name_4,char_article_105,0
 2026-07-24,warehouse_name_4,char_article_128,6
+2026-07-24,warehouse_name_4,char_article_117,-1
 2026-07-24,warehouse_name_4,char_article_112,0
 2026-07-24,warehouse_name_4,char_article_109,6
 2026-07-24,warehouse_name_6,char_article_127,0
@@ -117003,6 +117009,7 @@ date,warehouse_name,article,stock
 2026-07-25,warehouse_name_2,char_article_100,0
 2026-07-25,warehouse_name_4,char_article_109,6
 2026-07-25,warehouse_name_4,char_article_112,0
+2026-07-25,warehouse_name_4,char_article_117,-1
 2026-07-25,warehouse_name_2,char_article_101,0
 2026-07-25,warehouse_name_2,char_article_139,0
 2026-07-25,warehouse_name_4,char_article_106,0
@@ -117366,6 +117373,7 @@ date,warehouse_name,article,stock
 2026-07-25,warehouse_name_9,char_article_11,0
 2026-07-25,warehouse_name_9,char_article_132,0
 2026-07-25,warehouse_name_5,char_article_123,0
+2026-07-25,warehouse_name_5,char_article_106,-1
 2026-07-25,warehouse_name_5,char_article_14,0
 2026-07-25,warehouse_name_9,char_article_114,0
 2026-07-25,warehouse_name_9,char_article_115,0
@@ -117837,6 +117845,7 @@ date,warehouse_name,article,stock
 2026-07-26,warehouse_name_4,char_article_135,2
 2026-07-26,warehouse_name_4,char_article_105,0
 2026-07-26,warehouse_name_4,char_article_134,0
+2026-07-26,warehouse_name_4,char_article_117,-1
 2026-07-26,warehouse_name_4,char_article_112,0
 2026-07-26,warehouse_name_4,char_article_128,4
 2026-07-26,warehouse_name_4,char_article_109,6
@@ -118195,6 +118204,7 @@ date,warehouse_name,article,stock
 2026-07-26,warehouse_name_5,char_article_13,0
 2026-07-26,warehouse_name_5,char_article_123,0
 2026-07-26,warehouse_name_5,char_article_14,0
+2026-07-26,warehouse_name_5,char_article_106,-1
 2026-07-26,warehouse_name_5,char_article_141,0
 2026-07-26,warehouse_name_0,char_article_141,0
 2026-07-26,warehouse_name_0,char_article_139,0
@@ -118856,6 +118866,7 @@ date,warehouse_name,article,stock
 2026-07-27,warehouse_name_4,char_article_14,23
 2026-07-27,warehouse_name_4,char_article_106,0
 2026-07-27,warehouse_name_4,char_article_101,0
+2026-07-27,warehouse_name_4,char_article_117,-1
 2026-07-27,warehouse_name_4,char_article_128,4
 2026-07-27,warehouse_name_4,char_article_112,0
 2026-07-27,warehouse_name_4,char_article_109,6

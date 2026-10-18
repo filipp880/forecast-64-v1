@@ -20,6 +20,12 @@ venv/
 # журнал экспериментов (артефакт обучения, в образе не нужен)
 experiments.csv
 
+# промежуточные модели экспериментов и логи прогонов (боевая — model/)
+model_lgbm/
+model_hurdle/
+model_blend/
+logs/
+
 # тяжёлые тестовые сэмплы (генерируются: python scripts/make_samples.py)
 data/sample_sales_6mo.csv
 data/sample_stock_6mo.csv

@@ -6,7 +6,8 @@
 # Тяжёлые сэмплы data/sample_*_6mo.csv (>=180 дней истории) готовятся скриптом:
 #     python scripts/make_samples.py
 # Лёгкие data/sample_sales.csv / sample_stock.csv — примеры формата (первые 100 строк),
-# они НЕ подходят для POST из-за короткой истории.
+# они НЕ подходят для POST из-за короткой истории (решение судей: храним оба набора).
+# Отрицательный stock в остатках допускается (решение судей) — проверка 10.
 
 set -euo pipefail
 
@@ -58,22 +59,25 @@ assert len(rows) == len(combos) * 64, f"строк {len(rows)}, ожидалос
 for r in rows:
     q = float(r["quantity"])
     assert q == q and q >= 0, f"плохой quantity: {r}"
-print(f"  формат OK: {len(rows):,} строк, 64 даты, {len(combos):,} пар склад×товар")
+print(f"  формат OK: {len(rows):,} строк, 64 даты, {len(combos):,} пар склад x товар")
 PY
 
-ARTICLE="$(python -c "import csv,sys; print(next(csv.DictReader(open('$TMP_DIR/forecast.csv', encoding='utf-8')))['article'])")"
-WAREHOUSE="$(python -c "import csv,sys; print(next(csv.DictReader(open('$TMP_DIR/forecast.csv', encoding='utf-8')))['warehouse_name'])")"
+ARTICLE="$(awk -F, 'NR == 2 { print $3 }' "$TMP_DIR/forecast.csv")"
+WAREHOUSE="$(awk -F, 'NR == 2 { print $2 }' "$TMP_DIR/forecast.csv")"
 
 echo "=== 3. GET /predict?article=$ARTICLE ==="
-curl -sf "$BASE_URL/predict?article=$ARTICLE" | head -3
+curl -sf "$BASE_URL/predict?article=$ARTICLE" -o "$TMP_DIR/get_article.csv"
+head -3 "$TMP_DIR/get_article.csv"
 echo "OK"
 
 echo "=== 4. GET /predict?warehouse=$WAREHOUSE ==="
-curl -sf "$BASE_URL/predict?warehouse=$WAREHOUSE" | head -3
+curl -sf "$BASE_URL/predict?warehouse=$WAREHOUSE" -o "$TMP_DIR/get_warehouse.csv"
+head -3 "$TMP_DIR/get_warehouse.csv"
 echo "OK"
 
 echo "=== 5. GET /predict?article=&warehouse= ==="
-curl -sf "$BASE_URL/predict?article=$ARTICLE&warehouse=$WAREHOUSE" | head -3
+curl -sf "$BASE_URL/predict?article=$ARTICLE&warehouse=$WAREHOUSE" -o "$TMP_DIR/get_both.csv"
+head -3 "$TMP_DIR/get_both.csv"
 echo "OK"
 
 echo "=== 6. GET /predict/all?format=csv ==="
@@ -109,5 +113,25 @@ if ! grep -qi "access-control-allow-origin" <<< "$headers"; then
 fi
 grep -i "access-control-allow-origin" <<< "$headers"
 echo "OK"
+
+echo "=== 10. POST /predict с отрицательным stock (решение судей: допускается) ==="
+python - "$STOCK_FILE" "$TMP_DIR/stock_negative.csv" <<'PY'
+import csv
+import sys
+
+src, dst = sys.argv[1], sys.argv[2]
+with open(src, newline="", encoding="utf-8") as f:
+    rows = list(csv.DictReader(f))
+rows[0]["stock"] = "-2"
+with open(dst, "w", newline="", encoding="utf-8") as f:
+    writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+    writer.writeheader()
+    writer.writerows(rows)
+PY
+curl -sf -X POST "$BASE_URL/predict" \
+  -F "sales=@$SALES_FILE" \
+  -F "stock=@$TMP_DIR/stock_negative.csv" \
+  -o /dev/null
+echo "OK (POST принял отрицательный stock)"
 
 echo "=== Все тесты пройдены! ==="

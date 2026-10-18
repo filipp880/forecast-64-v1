@@ -3,4 +3,5 @@ uvicorn[standard]>=0.29,<1.0
 python-multipart>=0.0.9,<1.0
 pandas>=2.0,<3.0
 numpy>=1.24,<3.0
+lightgbm>=4.7,<5.0
 catboost>=1.2,<2.0

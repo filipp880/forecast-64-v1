@@ -1,1 +1,5 @@
-timestamp,tag,scheme,test_cutoff,model_type,max_cutoffs,cutoff_step,iterations,depth,learning_rate,refit,early_stopping_rounds,seed,lookback,horizon,es_iterations,n_cutoffs,train_rows,smape,wape,rmse,bias,rmsle,duration_sec,out_dir
+timestamp,tag,scheme,test_cutoff,model_type,max_cutoffs,cutoff_step,iterations,depth,learning_rate,refit,early_stopping_rounds,seed,lookback,horizon,es_iterations,zero_threshold,round_int,n_cutoffs,train_rows,smape,wape,rmse,bias,rmsle,duration_sec,out_dir
+2026-10-18T15:25:35,postprocess-smoke,strict-holdout,2026-05-28,lgbm,1,28,50,127,0.05,False,100,42,180,64,50,0.25,True,1,561728,30.3367,77.4091,1.0021,92.71,0.3397,43,model_smoke
+2026-10-18T16:28:11,hurdle-full,strict-holdout,2026-05-28,hurdle,all,28,2000/2000,63/63,0.05,True,100,42,180,64,"{'classifier': 75, 'regressor': 122}",0.0,True,28,14938454,29.6432,79.2813,0.9311,95.8241,0.3526,542,model_hurdle
+2026-10-18T16:38:06,lgbm-full,strict-holdout,2026-05-28,lgbm,all,28,3000,127,0.05,True,100,42,180,64,101,0.0,True,28,14938454,30.4766,75.0234,0.9321,91.0143,0.331,500,model_lgbm
+2026-10-18T17:25:25,blend-0.3,strict-holdout,2026-05-28,blend,all,28,2000/2000+3000,63/63+127,0.05+0.05,True,100,42,180,64,"{'hurdle': {'classifier': 75, 'regressor': 122}, 'lgbm': 101}",0.0,True,28,14938454,29.7641,74.2367,0.9221,91.7762,0.3336,690,model_blend

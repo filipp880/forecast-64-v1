@@ -2,13 +2,18 @@
 """Обучение модели прогноза продаж (регрессор на 64 дня — простая база).
 
 Тип модели выбирается через ``--model-type`` (реестр в ``app/models``),
-по умолчанию ``catboost``. Параметры модели
+по умолчанию ``lgbm``. Параметры модели
 задаются JSON-строкой ``--model-params`` поверх значений по умолчанию из
 класса модели. Новая модель (HistGradientBoosting, hurdle-композиция и т.п.)
 добавляется как новый класс в ``app/models`` — этот скрипт править не нужно.
 
 Таргет трансформируется по правилу класса модели (``target_transform``,
 по умолчанию ``log1p(quantity)``).
+
+Постобработка прогноза — ``--zero-threshold`` (обнулять прогнозы ниже порога)
+и ``--round-int`` (округлять до целых): применяется и к метрикам валидации,
+и при инференсе API (записывается в ``config.json`` → ``postprocess``).
+Подбирается без переобучения: ``python evaluate.py --sweep-thresholds ...``.
 
 Схема обучения — строгий holdout по времени (training_scheme=strict-holdout):
 
@@ -38,7 +43,7 @@
         --out-dir model
 
 Быстрая проба (несколько срезов и мало итераций):
-    python train.py --max-cutoffs 4 --model-params '{"iterations": 300}'
+    python train.py --max-cutoffs 4 --model-params '{"n_estimators": 300}'
 
 Каждый прогон дописывает строку в журнал экспериментов (``experiments.csv``):
 тег (``--tag``), конфигурация, метрики, длительность — для сравнения вариантов
@@ -72,7 +77,14 @@ from app.features import (
     make_training_frame,
     preprocessing_spec,
 )
-from app.models import available_model_types, get_model_class, inverse_target, transform_target
+from app.models import (
+    available_model_types,
+    get_model_class,
+    inverse_target,
+    postprocess_forecast,
+    transform_target,
+)
+from app.models.base import format_duration
 from app.metrics import compute_all_metrics, format_metrics
 
 
@@ -115,7 +127,8 @@ def build_dataset(
     """По каждому срезу — рамка признаков + таргет (горизонты только внутри данных)."""
     frames: list[pd.DataFrame] = []
     last_date = panel["date"].max()
-    for cutoff in cutoffs:
+    started = time.time()
+    for index, cutoff in enumerate(cutoffs, start=1):
         horizons = [
             h
             for h in range(1, horizon + 1)
@@ -124,20 +137,38 @@ def build_dataset(
         if not horizons:
             continue
         frame = make_training_frame(panel, cutoff, horizons, lookback_days)
-        print(f"  cutoff {cutoff.date()}: {len(frame):,} строк, горизонт {len(horizons)} дн.", flush=True)
+        elapsed = time.time() - started
+        eta = elapsed / index * (len(cutoffs) - index)
+        print(
+            f"  [{index}/{len(cutoffs)}] срез {cutoff.date()}: {len(frame):,} строк, "
+            f"горизонт {len(horizons)} дн. (прошло {format_duration(elapsed)}, "
+            f"осталось ~{format_duration(eta)})",
+            flush=True,
+        )
         frames.append(frame)
     if not frames:
         raise ValueError("Не удалось собрать обучающую выборку: слишком мало данных")
     return frames
 
 
-def evaluate_frame(model, model_cls, frame: pd.DataFrame) -> dict:
-    """Пять метрик ТЗ на рамке обучения по её собственному таргету."""
+def evaluate_frame(
+    model,
+    model_cls,
+    frame: pd.DataFrame,
+    zero_threshold: float = 0.0,
+    round_int: bool = False,
+) -> dict:
+    """Пять метрик ТЗ на рамке обучения по её собственному таргету.
+
+    Постобработка — та же, что будет на инференсе (``postprocess`` в config.json).
+    """
     truth = frame[["date", *KEY]].copy()
     truth["quantity"] = frame["target"].to_numpy(dtype="float64")
     forecast = frame[["date", *KEY]].copy()
-    forecast["quantity"] = np.clip(
-        inverse_target(model.predict(frame), model_cls.target_transform), 0.0, None
+    forecast["quantity"] = postprocess_forecast(
+        inverse_target(model.predict(frame), model_cls.target_transform),
+        zero_threshold=zero_threshold,
+        round_int=round_int,
     )
     return compute_all_metrics(truth, forecast)
 
@@ -159,6 +190,8 @@ EXP_LOG_COLUMNS = [
     "lookback",
     "horizon",
     "es_iterations",
+    "zero_threshold",
+    "round_int",
     "n_cutoffs",
     "train_rows",
     "smape",
@@ -177,6 +210,7 @@ def log_experiment(
     """Дописывает строку эксперимента в CSV-журнал (сравнение прогонов)."""
     metrics = (validation_info or {}).get("metrics") or {}
     early_stopping = (validation_info or {}).get("early_stopping") or {}
+    journal = model.journal_params()
 
     def metric(name: str):
         value = metrics.get(name)
@@ -190,15 +224,17 @@ def log_experiment(
         model.name,
         args.max_cutoffs if args.max_cutoffs else "all",
         args.cutoff_step,
-        model.params.get("iterations", ""),
-        model.params.get("depth", ""),
-        model.params.get("learning_rate", ""),
+        journal.get("iterations", ""),
+        journal.get("depth", ""),
+        journal.get("learning_rate", ""),
         args.refit,
         args.early_stopping_rounds,
         args.seed,
         args.lookback,
         args.horizon,
         early_stopping.get("iterations", ""),
+        args.zero_threshold,
+        args.round_int,
         n_cutoffs,
         train_rows,
         metric("smape"),
@@ -211,6 +247,13 @@ def log_experiment(
     ]
     path = Path(args.log_file)
     new_file = not path.exists() or path.stat().st_size == 0
+    if not new_file:
+        header = path.open("r", encoding="utf-8").readline().strip()
+        if header != ",".join(EXP_LOG_COLUMNS):
+            backup = path.with_name(path.name + ".bak")
+            path.replace(backup)
+            print(f"Схема журнала изменилась — старая версия сохранена: {backup}")
+            new_file = True
     with path.open("a", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         if new_file:
@@ -234,14 +277,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--out-dir", default="model", help="Куда сохранить модель и config.json")
     parser.add_argument(
         "--model-type",
-        default="catboost",
+        default="lgbm",
         choices=available_model_types(),
-        help="Тип модели из реестра app/models (по умолчанию catboost)",
+        help="Тип модели из реестра app/models (по умолчанию lgbm)",
     )
     parser.add_argument(
         "--model-params",
         default="{}",
-        help='JSON-объект с параметрами модели поверх значений по умолчанию: \'{"iterations": 300}\'',
+        help='JSON-объект с параметрами модели поверх значений по умолчанию: \'{"n_estimators": 300}\'',
     )
     parser.add_argument("--horizon", type=int, default=HORIZON, help="Горизонт прогноза, дней")
     parser.add_argument("--lookback", type=int, default=LOOKBACK_DAYS, help="Глубина истории для признаков")
@@ -259,6 +302,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Финальный refit на всех срезах с отобранным числом итераций (--no-refit отключает)",
     )
     parser.add_argument("--early-stopping-rounds", type=int, default=100)
+    parser.add_argument(
+        "--zero-threshold",
+        type=float,
+        default=0.0,
+        help="Обнулять прогнозы ниже порога (постобработка под SMAPE п. 5.5; 0 — выключено)",
+    )
+    parser.add_argument(
+        "--round-int",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Округлять прогноз до целых после обнуления (--no-round-int отключает)",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--threads", type=int, default=8, help="Число потоков (фиксировано для детерминизма)")
     parser.add_argument("--tag", default="", help="Метка эксперимента для журнала (что изменено)")
@@ -280,7 +335,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     except json.JSONDecodeError as exc:
         parser.error(f"--model-params: некорректный JSON ({exc})")
     if not isinstance(params, dict):
-        parser.error('--model-params должен быть JSON-объектом, например \'{"iterations": 300}\'')
+        parser.error('--model-params должен быть JSON-объектом, например \'{"n_estimators": 300}\'')
     args.model_params = params
     return args
 
@@ -289,11 +344,17 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     started = time.time()
 
+    def step(title: str) -> None:
+        """Отметка этапа обучения с общим прошедшим временем — «ноутбучный» прогресс."""
+        print(f"--- {title} (прошло {format_duration(time.time() - started)}) ---", flush=True)
+
     model_cls = get_model_class(args.model_type)
     model = model_cls({"seed": args.seed, "threads": args.threads, **args.model_params})
     print(f"Тип модели: {model_cls.name}, параметры: {model.params}")
+    print(f"Данные: sales={args.sales}, stock={args.stock}")
+    print("(обучение идёт на полном train-наборе; сэмплы sample_*_6mo.csv — только для тестов API)")
 
-    print("Загрузка данных...", flush=True)
+    step("Загрузка данных и сборка панели")
     sales = pd.read_csv(args.sales, parse_dates=["date"])
     stock = pd.read_csv(args.stock, parse_dates=["date"])
     panel = build_panel(sales, stock)
@@ -320,17 +381,16 @@ def main(argv: list[str] | None = None) -> int:
             f"тест {test_cutoff.date() + day}..{last_date.date()}",
             flush=True,
         )
-        print(
-            f"Сборка обучающей выборки по {len(train_cutoffs)} срезам "
-            f"(таргеты заканчиваются не позже {select_cutoff.date()}):",
-            flush=True,
+        step(
+            f"Сборка обучающей выборки: {len(train_cutoffs)} срезов, "
+            f"таргеты заканчиваются не позже {select_cutoff.date()}"
         )
         train_frames = build_dataset(panel, train_cutoffs, args.horizon, args.lookback)
         if any(frame["date"].max() > select_cutoff for frame in train_frames):
             raise RuntimeError("Утечка: таргеты обучающих срезов заходят в окно отбора")
         train = pd.concat(train_frames, ignore_index=True)
 
-        print(f"Сборка окон отбора и теста (h=1..{args.horizon}):", flush=True)
+        step(f"Сборка окон отбора и теста (h=1..{args.horizon})")
         valid_select = build_dataset(panel, [select_cutoff], args.horizon, args.lookback)[0]
         valid_test = build_dataset(panel, [test_cutoff], args.horizon, args.lookback)[0]
 
@@ -339,10 +399,9 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.early_stopping_rounds and not model_cls.supports_early_stopping:
             print(f"  прим.: модель '{model_cls.name}' не поддерживает early stopping — параметр пропущен")
-        print(
+        step(
             f"Обучение с early stopping: train {len(train):,} строк, "
-            f"окно отбора {len(valid_select):,} строк",
-            flush=True,
+            f"окно отбора {len(valid_select):,} строк"
         )
         model.fit(
             train,
@@ -353,24 +412,30 @@ def main(argv: list[str] | None = None) -> int:
         )
         n_iterations = model.selected_iterations
 
-        metrics = evaluate_frame(model, model_cls, valid_test)
+        step(f"Метрики ТЗ на тестовом окне {test_cutoff.date() + day}..{last_date.date()}")
+        metrics = evaluate_frame(
+            model, model_cls, valid_test, args.zero_threshold, args.round_int
+        )
         detail = f"  (iterations={n_iterations})" if n_iterations is not None else ""
         print(
-            f"Метрики ТЗ на тестовом окне {test_cutoff.date() + day}..{last_date.date()} "
-            f"(h=1..{args.horizon}): {format_metrics(metrics)}{detail}",
+            f"  {format_metrics(metrics)}{detail}",
             flush=True,
         )
 
         train_rows_final, n_cutoffs_final = len(train), len(train_frames)
         if args.refit:
             refit_cutoffs = cutoffs[-args.max_cutoffs :] if args.max_cutoffs else cutoffs
-            print(f"Refit на всех срезах ({len(refit_cutoffs)} шт.):", flush=True)
+            step(f"Refit на всех срезах ({len(refit_cutoffs)} шт.) — боевая модель")
             refit_frames = build_dataset(panel, refit_cutoffs, args.horizon, args.lookback)
             refit = pd.concat(refit_frames, ignore_index=True)
             y_refit = transform_target(refit["target"].to_numpy(dtype="float64"), model_cls.target_transform)
+            refit_iterations = (
+                n_iterations
+                if n_iterations is not None
+                else model.journal_params().get("iterations", "")
+            )
             print(
-                f"  refit {len(refit):,} строк, iterations="
-                f"{n_iterations if n_iterations is not None else model.params.get('iterations')}",
+                f"  refit {len(refit):,} строк, iterations={refit_iterations}",
                 flush=True,
             )
             model.fit(refit, y_refit, n_iterations=n_iterations)
@@ -396,7 +461,7 @@ def main(argv: list[str] | None = None) -> int:
             "(train = все срезы кроме последнего).",
             flush=True,
         )
-        print(f"Сборка обучающей выборки по {len(cutoffs)} срезам:", flush=True)
+        step(f"Сборка обучающей выборки: {len(cutoffs)} срезов")
         frames = build_dataset(panel, cutoffs, args.horizon, args.lookback)
 
         if len(frames) >= 2:
@@ -406,10 +471,9 @@ def main(argv: list[str] | None = None) -> int:
             train, valid = frames[0], None
 
         y_train = transform_target(train["target"].to_numpy(dtype="float64"), model_cls.target_transform)
-        print(
+        step(
             f"Обучение: train {len(train):,} строк"
-            + (f", valid {len(valid):,} строк" if valid is not None else ""),
-            flush=True,
+            + (f", valid {len(valid):,} строк" if valid is not None else "")
         )
         if valid is not None:
             if args.early_stopping_rounds and not model_cls.supports_early_stopping:
@@ -422,7 +486,9 @@ def main(argv: list[str] | None = None) -> int:
                 y_valid=y_valid,
                 early_stopping_rounds=args.early_stopping_rounds,
             )
-            metrics = evaluate_frame(model, model_cls, valid)
+            metrics = evaluate_frame(
+                model, model_cls, valid, args.zero_threshold, args.round_int
+            )
             valid_cutoff = valid["date"].min() - pd.Timedelta(days=1)
             max_horizon = int(valid["h"].max())
             print(f"Метрики ТЗ на срезе {valid_cutoff.date()} (h=1..{max_horizon}): {format_metrics(metrics)}", flush=True)
@@ -439,6 +505,7 @@ def main(argv: list[str] | None = None) -> int:
             model.fit(train, y_train)
         train_rows_final, n_cutoffs_final = len(train), len(frames)
 
+    step("Сохранение модели, препроцессора и конфига")
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     model_path = out_dir / f"model{model_cls.file_suffix}"
@@ -462,6 +529,10 @@ def main(argv: list[str] | None = None) -> int:
         "horizon": args.horizon,
         "lookback_days": args.lookback,
         "target_transform": model_cls.target_transform,
+        "postprocess": {
+            "zero_threshold": args.zero_threshold,
+            "round_int": args.round_int,
+        },
         "random_seed": args.seed,
         "thread_count": args.threads,
         "feature_columns": FEATURE_COLUMNS,

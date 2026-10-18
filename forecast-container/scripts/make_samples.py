@@ -62,10 +62,9 @@ def main() -> None:
     negative_stock = int((stock_sample["stock"] < 0).sum())
     if negative_stock:
         print(
-            f"  в сэмпле остатков отброшено строк с отрицательным stock: {negative_stock} "
-            "(такие строки есть в train-данных, но POST /predict их отклоняет по ТЗ)"
+            f"  в сэмпле остатков строк с отрицательным stock: {negative_stock} — "
+            "оставлены (решение судей: допускаются, панель клиппит их в 0)"
         )
-        stock_sample = stock_sample[stock_sample["stock"] >= 0]
 
     sales_sample.to_csv(out_dir / "sample_sales_6mo.csv", index=False)
     stock_sample.to_csv(out_dir / "sample_stock_6mo.csv", index=False)

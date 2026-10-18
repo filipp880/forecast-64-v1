@@ -7,7 +7,6 @@ import pickle
 from pathlib import Path
 from typing import Optional
 
-import numpy as np
 import pandas as pd
 
 from .features import (
@@ -19,7 +18,12 @@ from .features import (
     build_panel,
     make_features,
 )
-from .models import BaseForecastModel, get_model_class, inverse_target
+from .models import (
+    BaseForecastModel,
+    get_model_class,
+    inverse_target,
+    postprocess_forecast,
+)
 
 
 class ModelNotReadyError(RuntimeError):
@@ -47,7 +51,7 @@ class Predictor:
         """Загружает модель и конфиг из ``model_dir``.
 
         Тип модели берётся из поля ``model_type`` конфига (по умолчанию
-        ``catboost`` — обратная совместимость с конфигами первой версии).
+        ``lgbm`` — обратная совместимость с конфигами без поля).
         Модель подгружается лениво: приложение стартует и отвечает на
         ``/health`` даже до обучения, а ``POST /predict`` вернёт 503
         с понятным сообщением, пока модель не обучена.
@@ -57,7 +61,7 @@ class Predictor:
             raise ModelNotReadyError(f"Не найден конфиг модели: {config_path}")
         self.config = json.loads(config_path.read_text(encoding="utf-8"))
 
-        model_type = str(self.config.get("model_type", "catboost"))
+        model_type = str(self.config.get("model_type", "lgbm"))
         try:
             model_cls = get_model_class(model_type)
         except KeyError as exc:
@@ -124,18 +128,22 @@ class Predictor:
 
         panel = build_panel(df_sales, df_stock)
         if panel.empty:
-            raise ValueError("В переданных данных нет ни одной пары «склад × товар»")
+            raise ValueError("В переданных данных нет ни одной пары «склад x товар»")
 
         cutoff = panel["date"].max()
         horizon = int(self.config.get("horizon", HORIZON))
         lookback = int(self.config.get("lookback_days", LOOKBACK_DAYS))
 
         features = make_features(panel, cutoff, range(1, horizon + 1), lookback)
-        predictions = inverse_target(
-            self.model.predict(features),
-            str(self.config.get("target_transform", "log1p")),
+        post = self.config.get("postprocess") or {}
+        predictions = postprocess_forecast(
+            inverse_target(
+                self.model.predict(features),
+                str(self.config.get("target_transform", "log1p")),
+            ),
+            zero_threshold=float(post.get("zero_threshold", 0.0)),
+            round_int=bool(post.get("round_int", False)),
         )
-        predictions = np.clip(predictions, 0.0, None)
 
         forecast = features[[*KEY, "date"]].copy()
         forecast["quantity"] = predictions.astype(float)

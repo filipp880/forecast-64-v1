@@ -1,17 +1,16 @@
-"""Пять метрик ТЗ (п. 5) — зеркало официального ``score.py`` из задания.
+"""Пять метрик ТЗ (п. 5) — используются в ``train.py`` и ``evaluate.py``.
 
-Используются в ``train.py`` (метрики на отложенном срезе) и ``evaluate.py``
-(бэктест по нескольким срезам). Семантика 1-в-1 как в шаблоне организаторов:
+Семантика:
 
-- SMAPE — **по сериям** (склад × товар), затем среднее; дни с нулевым
-  знаменателем ``(|y|+|ŷ|)/2`` исключаются; если весь знаменатель серии нулевой
-  (факт=0 и прогноз=0) — серия даёт 0;
+- SMAPE — **по сериям** (склад × товар), затем среднее; дни, где факт=0 и
+  прогноз=0, **входят** в среднее как 0% (п. 5.5 ТЗ; решение судей — шаблон
+  ``score.py`` из раздела 9 исключал такие дни через ``mask = denominator > 0``
+  и при итоговой оценке использоваться не будет);
 - WAPE / RMSE / RMSLE — **глобально**; RMSLE через ``log1p``;
 - |Bias| — **по сериям** (серии с ``mean(y)=0`` исключаются), затем среднее;
 - прогноз перед расчётом: пропуски → 0, отрицательные значения → 0.
 
-Числа совпадают с циклом из ``score.py`` до последнего бита (проверено юнит-тестами),
-но реализация векторизована: серии кодируются целыми числами (hash) и агрегируются
+Реализация векторизована: серии кодируются целыми числами (hash) и агрегируются
 через ``groupby`` — цикл «по каждой серии маска по всем строкам» на 5 млрд сравнений
 строк не используется.
 
@@ -42,13 +41,12 @@ METRIC_NAMES = ("smape", "wape", "rmse", "bias", "rmsle")
 
 
 def smape_series(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    """SMAPE одной серии, в процентах (0..200)."""
+    """SMAPE одной серии, в процентах (0..200); дни «0 против 0» дают 0%."""
     numerator = np.abs(y_true - y_pred)
     denominator = (np.abs(y_true) + np.abs(y_pred)) / 2.0
-    mask = denominator > 0
-    if not mask.any():
-        return 0.0
-    return float(np.mean(numerator[mask] / denominator[mask]) * 100.0)
+    ratio = np.zeros_like(numerator, dtype="float64")
+    np.divide(numerator, denominator, out=ratio, where=denominator > 0)
+    return float(np.mean(ratio) * 100.0)
 
 
 def _series_codes(series_ids: np.ndarray) -> np.ndarray:
@@ -60,17 +58,16 @@ def _series_codes(series_ids: np.ndarray) -> np.ndarray:
 def smape(y_true: np.ndarray, y_pred: np.ndarray, series_ids: np.ndarray) -> float:
     """SMAPE по сериям (склад × товар), усреднённый.
 
-    Векторный эквивалент цикла из ``score.py``: серия без дней с ненулевым
-    знаменателем даёт 0 (среднее по NaN → fillna(0)).
+    Дни, где факт=0 и прогноз=0, входят в среднее серии как 0% — определение
+    п. 5.5 ТЗ (подтверждено судьями); шаблон ``score.py`` исключал такие дни.
     """
     if len(y_true) == 0:
         return 0.0
     numerator = np.abs(y_true - y_pred)
     denominator = (np.abs(y_true) + np.abs(y_pred)) / 2.0
-    positive = denominator > 0
-    ratio = np.full(len(y_true), np.nan, dtype="float64")
-    np.divide(numerator, denominator, out=ratio, where=positive)
-    means = pd.Series(ratio).groupby(_series_codes(series_ids)).mean().fillna(0.0)
+    ratio = np.zeros(len(y_true), dtype="float64")
+    np.divide(numerator, denominator, out=ratio, where=denominator > 0)
+    means = pd.Series(ratio).groupby(_series_codes(series_ids)).mean()
     return float(means.mean() * 100.0)
 
 

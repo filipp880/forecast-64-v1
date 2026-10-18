@@ -7,12 +7,15 @@
 
 from __future__ import annotations
 
-from .base import BaseForecastModel, inverse_target, transform_target
+from .base import BaseForecastModel, inverse_target, postprocess_forecast, transform_target
+from .blend_model import BlendForecastModel
 from .catboost_model import CatBoostForecastModel
+from .hurdle_model import HurdleForecastModel
+from .lightgbm_model import LightGBMForecastModel
 
 MODEL_REGISTRY: dict[str, type[BaseForecastModel]] = {
     cls.name: cls
-    for cls in (CatBoostForecastModel,)
+    for cls in (LightGBMForecastModel, HurdleForecastModel, BlendForecastModel, CatBoostForecastModel)
 }
 
 
@@ -37,5 +40,6 @@ __all__ = [
     "available_model_types",
     "get_model_class",
     "inverse_target",
+    "postprocess_forecast",
     "transform_target",
 ]

@@ -6,6 +6,12 @@
 среднее по срезам и разбивка по горизонтам 1-7 / 8-28 / 29-64 (как
 F1/F2/F3 в плане решения).
 
+Постобработка прогноза (порог обнуления и округление до целых) берётся из
+``config.json`` → ``postprocess`` и переопределяется флагами ``--zero-threshold``
+/ ``--round-int``. ``--sweep-thresholds`` считает метрики для набора порогов
+(с округлением и без) на уже посчитанных прогнозах — подбор порога без
+переобучения.
+
 Учитываются только «полные» срезы — те, до конца данных от которых хватает
 ровно ``--horizon`` дней; иначе горизонт обрезан и метрики несравнимы.
 
@@ -19,6 +25,7 @@ F1/F2/F3 в плане решения).
     python evaluate.py                              # model/, шаг 28 дней, 8 последних срезов
     python evaluate.py --max-cutoffs 4 --cutoff-step 56
     python evaluate.py --out report.json            # JSON-отчёт
+    python evaluate.py --sweep-thresholds 0,0.25,0.5,1   # подобрать порог обнуления
 """
 
 from __future__ import annotations
@@ -35,7 +42,8 @@ import pandas as pd
 
 from app.features import HORIZON, LOOKBACK_DAYS, build_panel, make_features
 from app.metrics import METRIC_NAMES, compute_all_metrics, format_metrics
-from app.models import get_model_class, inverse_target
+from app.models import get_model_class, inverse_target, postprocess_forecast
+from app.models.base import format_duration
 
 HORIZON_BUCKETS = ((1, 7), (8, 28), (29, 64))
 DATA_KEY = ["date", "warehouse_name", "article"]
@@ -57,6 +65,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--cutoff-step", type=int, default=28, help="Шаг между срезами, дней")
     parser.add_argument("--max-cutoffs", type=int, default=8, help="Сколько последних полных срезов оценить")
     parser.add_argument("--out", default=None, help="Путь для JSON-отчёта (опционально)")
+    parser.add_argument(
+        "--zero-threshold",
+        type=float,
+        default=None,
+        help="Обнулять прогнозы ниже порога (по умолчанию — из config.json -> postprocess)",
+    )
+    parser.add_argument(
+        "--round-int",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Округлять прогноз до целых (по умолчанию — из config.json -> postprocess)",
+    )
+    parser.add_argument(
+        "--sweep-thresholds",
+        default=None,
+        help="Список порогов через запятую (например '0,0.25,0.5,1'): метрики для каждого, с округлением и без",
+    )
     return parser.parse_args(argv)
 
 
@@ -98,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     config = json.loads(config_path.read_text(encoding="utf-8"))
 
-    model_type = str(config.get("model_type", "catboost"))
+    model_type = str(config.get("model_type", "lgbm"))
     model_cls = get_model_class(model_type)
     model_path = model_dir / (config.get("model_file") or f"model{model_cls.file_suffix}")
     if not model_path.exists():
@@ -110,6 +135,22 @@ def main(argv: list[str] | None = None) -> int:
     lookback = int(config.get("lookback_days", LOOKBACK_DAYS))
     transform = str(config.get("target_transform", "log1p"))
     print(f"Модель: {model_type} из {model_dir} (горизонт {horizon}, lookback {lookback})")
+
+    post = config.get("postprocess") or {}
+    zero_threshold = (
+        float(args.zero_threshold)
+        if args.zero_threshold is not None
+        else float(post.get("zero_threshold", 0.0))
+    )
+    round_int = (
+        bool(args.round_int)
+        if args.round_int is not None
+        else bool(post.get("round_int", False))
+    )
+    print(
+        f"Постобработка: порог обнуления {zero_threshold:g}, "
+        f"округление до целых: {'вкл' if round_int else 'выкл'}"
+    )
 
     print("Загрузка данных...", flush=True)
     sales = pd.read_csv(args.sales, parse_dates=["date"])
@@ -123,18 +164,28 @@ def main(argv: list[str] | None = None) -> int:
     per_cutoff: list[dict] = []
     pooled_truth: list[pd.DataFrame] = []
     pooled_pred: list[pd.DataFrame] = []
-    for cutoff in cutoffs:
+    raw_by_cutoff: list[tuple[pd.DataFrame, np.ndarray]] = []
+    started_eval = time.time()
+    for index, cutoff in enumerate(cutoffs, start=1):
         features = make_features(panel, cutoff, range(1, horizon + 1), lookback)
-        predictions = np.clip(inverse_target(model.predict(features), transform), 0.0, None)
+        raw = inverse_target(model.predict(features), transform)
+        predictions = postprocess_forecast(raw, zero_threshold, round_int)
 
         truth = features[DATA_KEY].merge(truth_source, on=DATA_KEY, how="left")
         truth["h"] = features["h"].to_numpy()
         forecast = features[DATA_KEY].copy()
         forecast["quantity"] = predictions
         forecast["h"] = features["h"].to_numpy()
+        raw_by_cutoff.append((truth.drop(columns="h"), raw))
 
         metrics = compute_all_metrics(truth.drop(columns="h"), forecast.drop(columns="h"))
-        print(f"  срез {cutoff.date()} ({len(features):,} строк): {format_metrics(metrics)}", flush=True)
+        elapsed = time.time() - started_eval
+        eta = elapsed / index * (len(cutoffs) - index)
+        print(
+            f"  [{index}/{len(cutoffs)}] срез {cutoff.date()} ({len(features):,} строк, "
+            f"осталось ~{format_duration(eta)}): {format_metrics(metrics)}",
+            flush=True,
+        )
         per_cutoff.append({"cutoff": str(cutoff.date()), "rows": int(len(features)), "metrics": metrics})
         pooled_truth.append(truth)
         pooled_pred.append(forecast)
@@ -158,6 +209,31 @@ def main(argv: list[str] | None = None) -> int:
         bucket_reports.append({"h_low": low, "h_high": high, "rows": int(mask.sum()), "metrics": metrics})
         print(f"  горизонты {low}-{high} дн. ({int(mask.sum()):,} строк): {format_metrics(metrics)}", flush=True)
 
+    sweep_report: list[dict] = []
+    if args.sweep_thresholds:
+        try:
+            sweep_values = [
+                float(value) for value in str(args.sweep_thresholds).split(",") if value.strip()
+            ]
+        except ValueError:
+            print("Ошибка: --sweep-thresholds — числа через запятую, например '0,0.25,0.5,1'", file=sys.stderr)
+            return 2
+        print(f"Свип порога обнуления (среднее по {len(cutoffs)} срезам):", flush=True)
+        for tau in sweep_values:
+            entry: dict = {"zero_threshold": tau}
+            for label, rnd in (("without_rounding", False), ("with_rounding", True)):
+                means = {name: [] for name in METRIC_NAMES}
+                for truth_frame, raw in raw_by_cutoff:
+                    forecast = truth_frame[DATA_KEY].copy()
+                    forecast["quantity"] = postprocess_forecast(raw, tau, rnd)
+                    metrics = compute_all_metrics(truth_frame, forecast)
+                    for name in METRIC_NAMES:
+                        means[name].append(metrics[name])
+                entry[label] = {name: float(np.mean(values)) for name, values in means.items()}
+            sweep_report.append(entry)
+            print(f"  порог={tau:<6g} без округл.: {format_metrics(entry['without_rounding'])}", flush=True)
+            print(f"  {'':<12} с округл.:   {format_metrics(entry['with_rounding'])}", flush=True)
+
     if args.out:
         report = {
             "model_type": model_type,
@@ -166,9 +242,11 @@ def main(argv: list[str] | None = None) -> int:
             "cutoff_step": args.cutoff_step,
             "horizon": horizon,
             "lookback_days": lookback,
+            "postprocess": {"zero_threshold": zero_threshold, "round_int": round_int},
             "per_cutoff": per_cutoff,
             "mean": mean_metrics,
             "horizon_buckets": bucket_reports,
+            "threshold_sweep": sweep_report,
         }
         Path(args.out).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"Отчёт сохранён: {args.out}")

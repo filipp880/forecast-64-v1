@@ -1,4 +1,10 @@
-"""Валидация входных CSV для POST /predict (п. 10.4 ТЗ)."""
+"""Валидация входных CSV для POST /predict (п. 10.4 ТЗ).
+
+Отрицательный ``stock`` допускается: решение судей — эту часть требования
+к валидации игнорировать (в выгрузке организаторов такие строки встречаются).
+При построении панели отрицательные остатки клиппятся в 0 — ровно как при
+обучении, поэтому прогноз не искажается.
+"""
 
 from __future__ import annotations
 
@@ -82,8 +88,4 @@ def validate_stock_csv(df: pd.DataFrame) -> List[str]:
     if dates is None:
         return errors
     _check_history(dates, "stock", errors)
-
-    stock = pd.to_numeric(df["stock"], errors="coerce")
-    if (stock < 0).any():
-        errors.append("Найдены отрицательные значения в stock")
     return errors
