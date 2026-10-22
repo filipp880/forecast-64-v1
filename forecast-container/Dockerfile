@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 # Системные зависимости (на случай сборки колёс из исходников)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -11,7 +11,7 @@ ENV PYTHONUNBUFFERED=1 \
     MODEL_DIR=/app/model
 
 # Сначала зависимости — слой кэшируется между сборками
-COPY requirements.txt .
+COPY requirements.txt requirements.lock.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Приложение и модель (обученная модель уже лежит в model/)

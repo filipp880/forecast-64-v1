@@ -48,6 +48,19 @@ class Predictor:
         return self.model is not None
 
     def load(self) -> "Predictor":
+        # Изолированное состояние: ошибка любого этапа не оставляет рабочую модель.
+        self.model = None
+        self.config = {}
+        self._cached_forecast = None
+        candidate = type(self)(self.model_dir)
+        try:
+            candidate._load_checked()
+        except Exception as exc:
+            raise ModelNotReadyError(f"Не удалось загрузить модель: {exc}") from exc
+        self.config, self.model = candidate.config, candidate.model
+        return self
+
+    def _load_checked(self) -> "Predictor":
         """Загружает модель и конфиг из ``model_dir``.
 
         Тип модели берётся из поля ``model_type`` конфига (по умолчанию
@@ -80,7 +93,33 @@ class Predictor:
                 f"Сначала обучите её: python train.py --model-type {model_type} --sales ... --stock ..."
             )
 
+        import hashlib
+        expected_hash = self.config.get("model_artifact_sha256")
+        if expected_hash and hashlib.sha256(model_path.read_bytes()).hexdigest() != expected_hash:
+            raise ModelNotReadyError("SHA-256 модели не соответствует config")
         self.model = model_cls.load(model_path)
+        for name, expected in (("horizon", HORIZON), ("feature_columns", FEATURE_COLUMNS), ("cat_features", CAT_FEATURES)):
+            if self.config.get(name, expected) != expected:
+                raise ModelNotReadyError(f"Несовместимый config: {name}")
+        if model_type == "lgbm":
+            # Текстовый Booster не хранит внешнее преобразование таргета.
+            transform = self.config.get("target_transform", "log1p")
+            if transform not in ("log1p", "none"):
+                raise ModelNotReadyError("Неизвестное преобразование таргета")
+            self.model.target_transform = transform
+        if self.config.get("target_transform", "log1p") != self.model.target_transform:
+            raise ModelNotReadyError("Несовместимое преобразование таргета")
+        boosters = []
+        for part in (self.model, getattr(self.model, "lgbm", None), getattr(self.model, "hurdle", None)):
+            for attr in ("booster", "classifier", "regressor"):
+                booster = getattr(part, attr, None)
+                if booster is not None:
+                    boosters.append(booster)
+        if any(b.feature_name() != FEATURE_COLUMNS for b in boosters):
+            raise ModelNotReadyError("Признаки артефакта не соответствуют коду")
+        catboost = getattr(self.model, "model", None)
+        if catboost is not None and getattr(catboost, "feature_names_", FEATURE_COLUMNS) != FEATURE_COLUMNS:
+            raise ModelNotReadyError("Признаки CatBoost не соответствуют коду")
         self._check_preprocessor()
         self._cached_forecast = None
         return self
@@ -93,11 +132,18 @@ class Predictor:
         совпали — модель обучена на других признаках, чем считает сервис:
         прогноз был бы молча испорчен, поэтому лучше явная ошибка.
         """
-        path = self.model_dir / "preprocessor.pkl"
+        path = self.model_dir / self.config.get("preprocessor_file", "preprocessor.pkl")
         if not path.exists():
+            if self.config.get("preprocessor_file"):
+                raise ModelNotReadyError(f"Нет объявленного препроцессора: {path}")
             return
         try:
-            spec = pickle.loads(path.read_bytes())
+            payload = path.read_bytes()
+            import hashlib
+            expected_hash = self.config.get("preprocessor_sha256")
+            if expected_hash and hashlib.sha256(payload).hexdigest() != expected_hash:
+                raise ModelNotReadyError("SHA-256 препроцессора не соответствует config")
+            spec = pickle.loads(payload)
         except Exception as exc:
             raise ModelNotReadyError(f"Не удалось прочитать {path}: {exc}") from None
         checks = {
@@ -106,10 +152,20 @@ class Predictor:
             "feature_columns": list(FEATURE_COLUMNS),
             "cat_features": list(CAT_FEATURES),
         }
+        from .features import PREPROCESSING_VERSION
+        if self.config.get("stock_policy", "legacy") == "window" and spec.get("schema_version") != PREPROCESSING_VERSION:
+            raise ModelNotReadyError("Несовместимая версия window-препроцессора")
+        from .features import HISTORY_WINDOWS, NEVER_SOLD
+        if list(spec.get("history_windows", HISTORY_WINDOWS)) != list(HISTORY_WINDOWS) or spec.get("never_sold", NEVER_SOLD) != NEVER_SOLD:
+            raise ModelNotReadyError("Несовместимые параметры исторических признаков")
+        if spec.get("target_transform", self.config.get("target_transform")) != self.config.get("target_transform"):
+            raise ModelNotReadyError("Преобразование таргета в препроцессоре не совпадает с config")
+        if spec.get("stock_policy", "legacy") != self.config.get("stock_policy", "legacy"):
+            raise ModelNotReadyError("Несовместимая политика исторических stock")
         problems = [
             name
             for name, expected in checks.items()
-            if (list(spec[name]) if isinstance(expected, list) else int(spec.get(name, -1)))
+            if (list(spec.get(name, [])) if isinstance(expected, list) else int(spec.get(name, -1)))
             != expected
         ]
         if problems:
@@ -134,23 +190,31 @@ class Predictor:
         horizon = int(self.config.get("horizon", HORIZON))
         lookback = int(self.config.get("lookback_days", LOOKBACK_DAYS))
 
-        features = make_features(panel, cutoff, range(1, horizon + 1), lookback)
+        features = make_features(panel, cutoff, range(1, horizon + 1), lookback, self.config.get("stock_policy", "legacy"))
         post = self.config.get("postprocess") or {}
-        predictions = postprocess_forecast(
-            inverse_target(
-                self.model.predict(features),
-                str(self.config.get("target_transform", "log1p")),
-            ),
-            zero_threshold=float(post.get("zero_threshold", 0.0)),
-            round_int=bool(post.get("round_int", False)),
-        )
-
+        if self.config.get("calibration"):
+            from .calibration import predict_calibrated
+            predictions = predict_calibrated(self.model, features, self.config["calibration"])
+        else:
+            predictions = postprocess_forecast(
+                inverse_target(
+                    self.model.predict(features),
+                    str(self.config.get("target_transform", "log1p")),
+                ),
+                zero_threshold=float(post.get("zero_threshold", 0.0)),
+                round_int=bool(post.get("round_int", False)),
+            )
         forecast = features[[*KEY, "date"]].copy()
+        import numpy as np
+        if not np.isfinite(predictions).all() or (predictions < 0).any():
+            raise ValueError("Модель вернула некорректный quantity")
         forecast["quantity"] = predictions.astype(float)
         forecast = forecast.sort_values(["date", *KEY]).reset_index(drop=True)
         forecast = forecast[["date", *KEY, "quantity"]]
         forecast["date"] = forecast["date"].dt.strftime("%Y-%m-%d")
 
+        from .submission import validate_forecast
+        validate_forecast(forecast, df_sales)
         self._cached_forecast = forecast
         return forecast
 

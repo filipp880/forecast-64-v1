@@ -49,6 +49,7 @@ CALENDAR_FEATURES = ["h", "dow", "month", "day", "week_of_year", "is_weekend"]
 FEATURE_COLUMNS = CAT_FEATURES + HISTORY_FEATURES + CALENDAR_FEATURES
 
 HORIZON = 64
+PREPROCESSING_VERSION = 2
 LOOKBACK_DAYS = 180
 NEVER_SOLD = 999.0
 HISTORY_WINDOWS = (7, 14, 28, 56, 90)
@@ -66,6 +67,10 @@ def build_panel(df_sales: pd.DataFrame, df_stock: pd.DataFrame) -> pd.DataFrame:
       по решению судей валидация их не отклоняет, так что модель учится ровно
       в том же пространстве, в котором работает на инференсе.
     """
+    from .validators import validate_values
+    errors = validate_values(df_sales, "sales") + validate_values(df_stock, "stock")
+    if errors:
+        raise ValueError("; ".join(errors))
     sales = df_sales.copy()
     sales["date"] = pd.to_datetime(sales["date"])
     sales["quantity"] = pd.to_numeric(sales["quantity"], errors="coerce").fillna(0.0)
@@ -78,7 +83,13 @@ def build_panel(df_sales: pd.DataFrame, df_stock: pd.DataFrame) -> pd.DataFrame:
 
     qty = sales.groupby(["date", *KEY], as_index=False)["quantity"].sum()
     attrs = sales.groupby(KEY, as_index=False)[_SERIES_ATTRS].first()
+    first_sale = qty.groupby(KEY, as_index=False)["date"].min().rename(columns={"date": "_first_sale_date"})
+    attrs = attrs.merge(first_sale, on=KEY, validate="one_to_one")
+    for col in _SERIES_ATTRS:
+        available = sales.loc[sales[col].notna()].groupby(KEY, as_index=False)["date"].min().rename(columns={"date": f"_available_{col}"})
+        attrs = attrs.merge(available, on=KEY, how="left", validate="one_to_one")
     stock_daily = stock.groupby(["date", *KEY], as_index=False)["stock"].max()
+    stock_daily["_stock_observed_date"] = stock_daily["date"]
 
     combos = qty[KEY].drop_duplicates()
     dates = pd.date_range(qty["date"].min(), qty["date"].max(), freq="D")
@@ -91,11 +102,11 @@ def build_panel(df_sales: pd.DataFrame, df_stock: pd.DataFrame) -> pd.DataFrame:
     panel = panel.merge(attrs, on=KEY, how="left")
     panel["quantity"] = panel["quantity"].fillna(0.0)
     panel = panel.sort_values([*KEY, "date"]).reset_index(drop=True)
-    panel["stock"] = panel.groupby(KEY, sort=False)["stock"].ffill()
+    panel[["stock", "_stock_observed_date"]] = panel.groupby(KEY, sort=False)[["stock", "_stock_observed_date"]].ffill()
     return panel
 
 
-def preprocessing_spec() -> dict:
+def preprocessing_spec(stock_policy="window", lookback_days=LOOKBACK_DAYS, horizon=HORIZON) -> dict:
     """Спецификация пайплайна предобработки для ``model/preprocessor.pkl``.
 
     Фиксирует параметры построения признаков на момент обучения; ``predictor``
@@ -104,8 +115,10 @@ def preprocessing_spec() -> dict:
     """
     return {
         "pipeline": "app.features",
-        "lookback_days": LOOKBACK_DAYS,
-        "horizon": HORIZON,
+        "schema_version": PREPROCESSING_VERSION,
+        "stock_policy": stock_policy,
+        "lookback_days": lookback_days,
+        "horizon": horizon,
         "history_windows": list(HISTORY_WINDOWS),
         "never_sold": NEVER_SOLD,
         "feature_columns": list(FEATURE_COLUMNS),
@@ -120,6 +133,18 @@ def _history(panel: pd.DataFrame, cutoff: pd.Timestamp, lookback_days: int) -> p
     ]
 
 
+def origin_history(panel, cutoff, lookback_days, stock_policy="window"):
+    if stock_policy not in ("legacy", "window"):
+        raise ValueError(f"Неизвестная политика stock: {stock_policy}")
+    hist = _history(panel, cutoff, lookback_days)
+    if stock_policy == "window":
+        hist = hist.copy()
+        # На входе API нет наблюдений до левой границы окна.
+        valid = hist["_stock_observed_date"] > cutoff - pd.Timedelta(days=lookback_days)
+        hist["stock"] = hist["stock"].where(valid)
+    return hist
+
+
 def _share_zero(frame: pd.DataFrame, column: str, series_index: pd.MultiIndex) -> pd.Series:
     flag = frame[[*KEY, column]].assign(
         _flag=(frame[column] == 0).astype("float32")
@@ -131,29 +156,31 @@ def series_features(
     panel: pd.DataFrame,
     cutoff: pd.Timestamp,
     lookback_days: int = LOOKBACK_DAYS,
+    stock_policy: str = "window",
 ) -> pd.DataFrame:
     """Признаки уровня серии, посчитанные строго по данным до ``cutoff`` включительно."""
-    hist = _history(panel, cutoff, lookback_days)
+    hist = origin_history(panel, cutoff, lookback_days, stock_policy)
     if hist.empty:
         raise ValueError(
             f"Нет истории до {pd.Timestamp(cutoff).date()} — признаки не посчитать"
         )
 
-    series_index = pd.MultiIndex.from_frame(panel[KEY].drop_duplicates())
-    feats = pd.DataFrame(index=series_index)
-
     at_cutoff = hist[hist["date"] == cutoff].set_index(KEY)
+    if at_cutoff.empty:
+        raise ValueError("Нет снимка на дату отсечки")
+    series_index = at_cutoff.index
+    feats = pd.DataFrame(index=series_index)
     feats["last_value"] = at_cutoff["quantity"].reindex(series_index)
     feats["stock_last"] = at_cutoff["stock"].reindex(series_index)
 
     for window in HISTORY_WINDOWS:
-        win = _history(panel, cutoff, window)
+        win = _history(hist, cutoff, window)
         feats[f"mean_{window}"] = (
             win.groupby(KEY, sort=False)["quantity"].mean().reindex(series_index)
         )
 
-    win28 = _history(panel, cutoff, 28)
-    win90 = _history(panel, cutoff, 90)
+    win28 = _history(hist, cutoff, 28)
+    win90 = _history(hist, cutoff, 90)
 
     feats["zero_share_28"] = _share_zero(win28, "quantity", series_index)
     feats["zero_share_90"] = _share_zero(win90, "quantity", series_index)
@@ -189,12 +216,13 @@ def series_features(
     ]
     feats[fill_zero] = feats[fill_zero].fillna(0.0)
 
-    attrs = (
-        panel[[*KEY, *_SERIES_ATTRS]]
-        .drop_duplicates(subset=KEY)
-        .set_index(KEY)
-        .reindex(series_index)
-    )
+    attrs = at_cutoff[_SERIES_ATTRS].reindex(series_index).copy()
+    if stock_policy == "window":
+        for col in _SERIES_ATTRS:
+            marker = f"_available_{col}"
+            if marker in panel:
+                available = at_cutoff[marker].reindex(series_index)
+                attrs[col] = attrs[col].where(available <= cutoff)
     return feats.join(attrs)
 
 
@@ -203,6 +231,7 @@ def make_features(
     cutoff: pd.Timestamp,
     horizons: Sequence[int],
     lookback_days: int = LOOKBACK_DAYS,
+    stock_policy: str = "window",
 ) -> pd.DataFrame:
     """Длинная рамка признаков: одна строка = серия × горизонт ``h``.
 
@@ -210,8 +239,10 @@ def make_features(
     остальные — строго «по состоянию на ``cutoff``».
     """
     cutoff = pd.Timestamp(cutoff)
+    if stock_policy == "window" and "_first_sale_date" in panel:
+        panel = panel.loc[panel["_first_sale_date"] <= cutoff]
     horizons = list(horizons)
-    hist = _history(panel, cutoff, lookback_days)
+    hist = origin_history(panel, cutoff, lookback_days, stock_policy)
 
     dow_stats = (
         hist.assign(dow=hist["date"].dt.dayofweek)
@@ -231,7 +262,7 @@ def make_features(
     )
     target_days["is_weekend"] = (target_days["dow"] >= 5).astype(int)
 
-    feats = series_features(panel, cutoff, lookback_days).reset_index()
+    feats = series_features(panel, cutoff, lookback_days, stock_policy).reset_index()
     feats = feats.assign(_k=1).merge(target_days.assign(_k=1), on="_k").drop(columns="_k")
     feats = feats.merge(dow_stats, on=KEY + ["dow"], how="left")
     feats["dow_mean"] = feats["dow_mean"].fillna(feats["mean_28"])
@@ -251,13 +282,17 @@ def make_training_frame(
     cutoff: pd.Timestamp,
     horizons: Sequence[int],
     lookback_days: int = LOOKBACK_DAYS,
+    stock_policy: str = "window",
 ) -> pd.DataFrame:
     """Признаки + таргет ``target`` (факт на ``cutoff + h``; нет записи → 0).
 
     Горизонты, выходящие за пределы данных, передавать нельзя: они получат
     ложный таргет 0. Отбор валидных горизонтов — на стороне вызывающего кода.
     """
-    frame = make_features(panel, cutoff, horizons, lookback_days)
+    horizons = list(horizons)
+    if not horizons or min(horizons) < 1 or pd.Timestamp(cutoff) + pd.Timedelta(days=max(horizons)) > panel["date"].max():
+        raise ValueError("Обучающие горизонты выходят за границу доступных фактов")
+    frame = make_features(panel, cutoff, horizons, lookback_days, stock_policy)
     target = panel[["date", *KEY, "quantity"]]
     frame = frame.merge(target, on=["date", *KEY], how="left")
     frame["target"] = frame["quantity"].fillna(0.0)

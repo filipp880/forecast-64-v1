@@ -1,16 +1,45 @@
-# Локальные материалы (ТЗ, план, исходные данные — вне репозитория)
+# Локальные исходные данные, материалы организаторов и рабочие документы
 /data/
 /docs/
 
-# Python
+# Локальное восстановление, эксперименты и сдаваемые CSV/архивы
+/artifacts/
+/submission/
+/.audit-tmp/
+/demo/
+/FINAL_REPORT_RU.md
+
+# Локальные настройки инструментов и секреты
+/.omo/
+/.codex/
+/.agents/
+/.aws/
+.idea/
+.vscode/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python и результаты тестов
 __pycache__/
 *.py[cod]
 .venv/
 venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.test-output/
+.coverage
+htmlcov/
+*.egg-info/
 
-# Логи и артефакты прогонов
+# Логи и служебные файлы ОС
 *.log
-
-# Windows
 Thumbs.db
 desktop.ini
+.DS_Store
+
+# Локальный текст выступления
+/PRESENTATION_RU.md

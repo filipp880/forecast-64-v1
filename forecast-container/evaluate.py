@@ -64,6 +64,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--cutoff-step", type=int, default=28, help="Шаг между срезами, дней")
     parser.add_argument("--max-cutoffs", type=int, default=8, help="Сколько последних полных срезов оценить")
+    parser.add_argument("--allow-in-sample", action="store_true", help="Явно разрешить диагностическую оценку фактов обучения")
     parser.add_argument("--out", default=None, help="Путь для JSON-отчёта (опционально)")
     parser.add_argument(
         "--zero-threshold",
@@ -122,6 +123,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Ошибка: не найден конфиг модели: {config_path}", file=sys.stderr)
         return 2
     config = json.loads(config_path.read_text(encoding="utf-8"))
+    if not args.allow_in_sample and not any(config.get(k) for k in ("training_data_end", "selection_data_end")):
+        raise ValueError("Нет подтверждённой границы доступных модели данных; используйте verified_backtest.py или явно --allow-in-sample")
 
     model_type = str(config.get("model_type", "lgbm"))
     model_cls = get_model_class(model_type)
@@ -159,6 +162,10 @@ def main(argv: list[str] | None = None) -> int:
     truth_source = panel[[*DATA_KEY, "quantity"]]
 
     cutoffs = full_cutoffs(panel, lookback, horizon, args.cutoff_step, args.max_cutoffs)
+    dates_seen = [config.get("training_data_end"), config.get("selection_data_end")]
+    trained_through = max((d for d in dates_seen if d), default=None)
+    if not args.allow_in_sample and (not trained_through or min(cutoffs) < pd.Timestamp(trained_through)):
+        raise ValueError("Независимость модели не подтверждена. Используйте scripts/verified_backtest.py; для диагностики явно --allow-in-sample")
     print(f"Оценка по {len(cutoffs)} полным срезам (шаг {args.cutoff_step} дн.):", flush=True)
 
     per_cutoff: list[dict] = []
@@ -167,7 +174,7 @@ def main(argv: list[str] | None = None) -> int:
     raw_by_cutoff: list[tuple[pd.DataFrame, np.ndarray]] = []
     started_eval = time.time()
     for index, cutoff in enumerate(cutoffs, start=1):
-        features = make_features(panel, cutoff, range(1, horizon + 1), lookback)
+        features = make_features(panel, cutoff, range(1, horizon + 1), lookback, config.get("stock_policy", "legacy"))
         raw = inverse_target(model.predict(features), transform)
         predictions = postprocess_forecast(raw, zero_threshold, round_int)
 
@@ -187,6 +194,8 @@ def main(argv: list[str] | None = None) -> int:
             flush=True,
         )
         per_cutoff.append({"cutoff": str(cutoff.date()), "rows": int(len(features)), "metrics": metrics})
+        truth["origin"] = cutoff.strftime("%Y-%m-%d")
+        forecast["origin"] = cutoff.strftime("%Y-%m-%d")
         pooled_truth.append(truth)
         pooled_pred.append(forecast)
 
@@ -236,6 +245,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.out:
         report = {
+            "evaluation_kind": "diagnostic" if args.allow_in_sample else "out_of_sample",
             "model_type": model_type,
             "model_dir": str(model_dir),
             "generated_at": datetime.now().isoformat(timespec="seconds"),

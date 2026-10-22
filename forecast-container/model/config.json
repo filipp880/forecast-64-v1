@@ -59,7 +59,7 @@
     "seed": 42,
     "threads": 8
   },
-  "validation": {
+  "validation_historical": {
     "scheme": "strict-holdout",
     "cutoff": "2026-05-28",
     "max_horizon": 64,
@@ -82,5 +82,29 @@
         "lgbm": 101
       }
     }
-  }
+  },
+  "validation_historical_note": "До refit; исторический отчёт, не новые OOF значения",
+  "stock_policy": "window",
+  "training_stock_policy": "legacy",
+  "training_data_end": "2026-07-31",
+  "artifact_version": "verified-20261022",
+  "coverage_policy": "observed_sales_pairs",
+  "model_artifact_sha256": "4eeb70277bbc85981774de19d69dc0657f9be11bd3e04962fa91aef9bb0aa168",
+  "verified_validation": {
+    "protocol": "artifacts/verified/protocol.json",
+    "selection_origin": "2026-03-25",
+    "confirmation_origin": "2026-05-28",
+    "final_name": "incumbent",
+    "confirmation_metrics": {
+      "smape": 29.589036276138327,
+      "wape": 73.70513350797371,
+      "rmse": 0.9144441951907596,
+      "bias": 91.6975104383545,
+      "rmsle": 0.33252921640522337,
+      "zero_share": 0.8998835337360382,
+      "volume_bias": -47.25079277540328
+    },
+    "note": "Оценочные копии рецепта обучены только на прошлом каждого origin; финальный Booster сохранён, исправленная window-предобработка дала те же прогнозы на обоих OOF и полном входе"
+  },
+  "preprocessor_sha256": "e5c377b694a5f0e39114f6402056c5e80c84fb60d9fd812dd6bf53a00411a2d9"
 }

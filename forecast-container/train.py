@@ -123,6 +123,7 @@ def build_dataset(
     cutoffs: list[pd.Timestamp],
     horizon: int,
     lookback_days: int,
+    stock_policy: str = "window",
 ) -> list[pd.DataFrame]:
     """По каждому срезу — рамка признаков + таргет (горизонты только внутри данных)."""
     frames: list[pd.DataFrame] = []
@@ -136,7 +137,7 @@ def build_dataset(
         ]
         if not horizons:
             continue
-        frame = make_training_frame(panel, cutoff, horizons, lookback_days)
+        frame = make_training_frame(panel, cutoff, horizons, lookback_days, stock_policy)
         elapsed = time.time() - started
         eta = elapsed / index * (len(cutoffs) - index)
         print(
@@ -336,6 +337,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if not isinstance(params, dict):
         parser.error('--model-params должен быть JSON-объектом, например \'{"n_estimators": 300}\'')
     args.model_params = params
+    if args.horizon != HORIZON:
+        parser.error("Для submission необходим горизонт ровно 64 дня")
+    if args.lookback < 90 or args.cutoff_step <= 0 or (args.max_cutoffs is not None and args.max_cutoffs <= 0):
+        parser.error("lookback>=90, cutoff-step>0, max-cutoffs>0")
     return args
 
 
@@ -370,6 +375,8 @@ def main(argv: list[str] | None = None) -> int:
     ]
     strict = bool(eligible) and select_cutoff > panel["date"].min()
 
+    if not strict:
+        raise ValueError("Недостаточно истории для независимых окон train/select/test; legacy-split отключён")
     validation_info = None
     if strict:
         last_date = panel["date"].max()
@@ -452,58 +459,6 @@ def main(argv: list[str] | None = None) -> int:
                 "iterations": n_iterations,
             },
         }
-    else:
-        if args.max_cutoffs:
-            cutoffs = cutoffs[-args.max_cutoffs :]
-        print(
-            "Прим.: данных мало для строгой схемы — простая схема "
-            "(train = все срезы кроме последнего).",
-            flush=True,
-        )
-        step(f"Сборка обучающей выборки: {len(cutoffs)} срезов")
-        frames = build_dataset(panel, cutoffs, args.horizon, args.lookback)
-
-        if len(frames) >= 2:
-            train = pd.concat(frames[:-1], ignore_index=True)
-            valid = frames[-1]
-        else:
-            train, valid = frames[0], None
-
-        y_train = transform_target(train["target"].to_numpy(dtype="float64"), model.target_transform)
-        step(
-            f"Обучение: train {len(train):,} строк"
-            + (f", valid {len(valid):,} строк" if valid is not None else "")
-        )
-        if valid is not None:
-            if args.early_stopping_rounds and not model_cls.supports_early_stopping:
-                print(f"  прим.: модель '{model_cls.name}' не поддерживает early stopping — параметр пропущен")
-            y_valid = transform_target(valid["target"].to_numpy(dtype="float64"), model.target_transform)
-            model.fit(
-                train,
-                y_train,
-                x_valid=valid,
-                y_valid=y_valid,
-                early_stopping_rounds=args.early_stopping_rounds,
-            )
-            metrics = evaluate_frame(
-                model, valid, args.zero_threshold, args.round_int
-            )
-            valid_cutoff = valid["date"].min() - pd.Timedelta(days=1)
-            max_horizon = int(valid["h"].max())
-            print(f"Метрики ТЗ на срезе {valid_cutoff.date()} (h=1..{max_horizon}): {format_metrics(metrics)}", flush=True)
-            if max_horizon < args.horizon:
-                print(f"  прим.: срез покрывает не весь горизонт 1..{args.horizon} — для честной оценки запустите evaluate.py")
-            validation_info = {
-                "scheme": "legacy-split",
-                "cutoff": str(valid_cutoff.date()),
-                "max_horizon": max_horizon,
-                "rows": int(len(valid)),
-                "metrics": metrics,
-            }
-        else:
-            model.fit(train, y_train)
-        train_rows_final, n_cutoffs_final = len(train), len(frames)
-
     step("Сохранение модели, препроцессора и конфига")
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -514,7 +469,7 @@ def main(argv: list[str] | None = None) -> int:
     preprocessor_path.write_bytes(
         pickle.dumps(
             {
-                **preprocessing_spec(),
+                **preprocessing_spec(lookback_days=args.lookback, horizon=args.horizon),
                 "target_transform": model.target_transform,
                 "trained_at": datetime.now().isoformat(timespec="seconds"),
             }
@@ -527,6 +482,7 @@ def main(argv: list[str] | None = None) -> int:
         "preprocessor_file": preprocessor_path.name,
         "horizon": args.horizon,
         "lookback_days": args.lookback,
+        "stock_policy": "window",
         "target_transform": model.target_transform,
         "postprocess": {
             "zero_threshold": args.zero_threshold,
@@ -536,6 +492,8 @@ def main(argv: list[str] | None = None) -> int:
         "thread_count": args.threads,
         "feature_columns": FEATURE_COLUMNS,
         "cat_features": CAT_FEATURES,
+        "training_data_end": str(panel["date"].max().date()) if args.refit else str(select_cutoff.date()),
+        "selection_data_end": str(test_cutoff.date()),
         "trained_at": datetime.now().isoformat(timespec="seconds"),
         "n_cutoffs": n_cutoffs_final,
         "train_rows": int(train_rows_final),

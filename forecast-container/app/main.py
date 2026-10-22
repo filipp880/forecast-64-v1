@@ -21,6 +21,8 @@ from typing import Iterator, Optional
 import pandas as pd
 from fastapi import FastAPI, File, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from starlette.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from .predictor import ForecastNotReadyError, ModelNotReadyError, Predictor
@@ -93,12 +95,17 @@ async def _read_upload(upload: UploadFile, name: str):
     if not content.strip():
         return None, _error(400, f"Пустой файл: {name}")
     try:
-        df = pd.read_csv(io.BytesIO(content))
+        df = pd.read_csv(io.BytesIO(content), dtype={"warehouse_name": "string", "article": "string", "char_article": "string"})
     except Exception as exc:
         return None, _error(400, f"Ошибка парсинга CSV ({name}): {exc}")
     if df.empty:
         return None, _error(400, f"Пустой файл: {name}")
     return df, None
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_error(request, exc):
+    return _error(422, str(exc))
 
 
 @app.get("/")
@@ -137,7 +144,7 @@ async def predict_post(
         return _error(422, "; ".join(errors))
 
     try:
-        forecast = predictor.predict(df_sales, df_stock)
+        forecast = await run_in_threadpool(predictor.predict, df_sales, df_stock)
     except ModelNotReadyError as exc:
         return _error(503, str(exc), code="MODEL_NOT_READY")
     except ValueError as exc:

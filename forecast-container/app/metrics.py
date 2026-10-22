@@ -121,11 +121,30 @@ def compute_all_metrics(df_true: pd.DataFrame, df_pred: pd.DataFrame) -> Dict[st
     Как в ``score.py``: merge — left от факта, пропуски прогноза → 0,
     отрицательные прогнозы клиппятся в 0. Дубликатов ключа быть не должно.
     """
+    df_true, df_pred = df_true.copy(), df_pred.copy()
+    for frame in (df_true, df_pred):
+        frame["date"] = pd.to_datetime(frame["date"], errors="raise")
+        frame["quantity"] = pd.to_numeric(frame["quantity"], errors="raise").astype(float)
+        if "origin" in frame:
+            frame["origin"] = pd.to_datetime(frame["origin"], errors="raise")
+        for column in ("warehouse_name", "article"):
+            frame[column] = frame[column].astype("string")
+    keys = KEY_COLUMNS + (["origin"] if "origin" in df_true and "origin" in df_pred else [])
+    if ("origin" in df_true) != ("origin" in df_pred):
+        raise ValueError("origin должен присутствовать и в факте, и в прогнозе")
+    for name, frame in (("truth", df_true), ("prediction", df_pred)):
+        if frame[keys].isna().any().any() or frame.duplicated(keys).any():
+            raise ValueError(f"Пустые или повторяющиеся ключи {name}: {keys}")
+        if not np.isfinite(pd.to_numeric(frame["quantity"], errors="coerce").to_numpy(float)).all():
+            raise ValueError(f"Некорректные quantity: {name}")
+    if (df_true["quantity"] < 0).any():
+        raise ValueError("Отрицательный факт quantity")
     df = df_true.merge(
         df_pred,
-        on=KEY_COLUMNS,
+        on=keys,
         how="left",
         suffixes=("_true", "_pred"),
+        validate="one_to_one",
     )
     nan_count = int(df["quantity_pred"].isna().sum())
     if nan_count > 0:
@@ -134,7 +153,7 @@ def compute_all_metrics(df_true: pd.DataFrame, df_pred: pd.DataFrame) -> Dict[st
 
     y_true = df["quantity_true"].to_numpy(dtype="float64")
     y_pred = df["quantity_pred"].to_numpy(dtype="float64")
-    series_ids = (df["warehouse_name"].astype(str) + "|" + df["article"].astype(str)).to_numpy()
+    series_ids = pd.MultiIndex.from_frame(df[["warehouse_name", "article"]]).to_numpy()
 
     return {
         "smape": smape(y_true, y_pred, series_ids),

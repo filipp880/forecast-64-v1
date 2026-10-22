@@ -292,8 +292,8 @@ class HurdleForecastModel(BaseForecastModel):
         if self.classifier is None or self.regressor is None:
             raise RuntimeError("Модель не обучена — сначала вызовите fit()")
         x = self._encode(features, fit=False)
-        probability = self.classifier.predict(x, num_iteration=self._best_iterations["classifier"])
-        magnitude = self.regressor.predict(x, num_iteration=self._best_iterations["regressor"])
+        probability = self.classifier.predict(x, num_iteration=self._best_iterations["classifier"], num_threads=int(self.params.get("threads", 8)))
+        magnitude = self.regressor.predict(x, num_iteration=self._best_iterations["regressor"], num_threads=int(self.params.get("threads", 8)))
         gate = float(self.params.get("gate", 0.5))
         return np.where(np.asarray(probability) >= gate, magnitude, 0.0).astype("float64")
 

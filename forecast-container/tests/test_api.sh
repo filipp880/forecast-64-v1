@@ -14,8 +14,8 @@ set -euo pipefail
 BASE_URL="${1:-http://localhost:8000}"
 SALES_FILE="${SALES_FILE:-data/sample_sales_6mo.csv}"
 STOCK_FILE="${STOCK_FILE:-data/sample_stock_6mo.csv}"
-TMP_DIR="${TMPDIR:-/tmp}/forecast_api_test"
-mkdir -p "$TMP_DIR"
+TMP_DIR="${FORECAST_TEST_DIR:-.test-output}"
+python -c 'import pathlib,sys; pathlib.Path(sys.argv[1]).mkdir(parents=True,exist_ok=True)' "$TMP_DIR"
 
 for f in "$SALES_FILE" "$STOCK_FILE"; do
   if [ ! -f "$f" ]; then
@@ -36,12 +36,15 @@ curl -sf -X POST "$BASE_URL/predict" \
 python - "$TMP_DIR/forecast.csv" "$SALES_FILE" <<'PY'
 import csv
 import sys
+import math
 from datetime import date, timedelta
 
 forecast_path, sales_path = sys.argv[1], sys.argv[2]
 
 with open(sales_path, newline="", encoding="utf-8") as f:
-    combos = {(r["warehouse_name"], r["article"]) for r in csv.DictReader(f)}
+    sales_rows = list(csv.DictReader(f))
+    combos = {(r["warehouse_name"], r["article"]) for r in sales_rows}
+    last_sales = max(date.fromisoformat(r["date"]) for r in sales_rows)
 
 with open(forecast_path, newline="", encoding="utf-8") as f:
     reader = csv.DictReader(f)
@@ -50,6 +53,10 @@ with open(forecast_path, newline="", encoding="utf-8") as f:
 
 dates = sorted({r["date"] for r in rows})
 assert len(dates) == 64, f"дат {len(dates)}, ожидалось 64"
+assert date.fromisoformat(dates[0]) == last_sales + timedelta(days=1)
+keys = {(r["date"], r["warehouse_name"], r["article"]) for r in rows}
+assert len(keys) == len(rows), "повторяющиеся ключи"
+assert {(r["warehouse_name"], r["article"]) for r in rows} == combos
 expected = date.fromisoformat(dates[0])
 for d in dates:
     assert date.fromisoformat(d) == expected, f"даты не подряд: {d}"
@@ -58,7 +65,7 @@ for d in dates:
 assert len(rows) == len(combos) * 64, f"строк {len(rows)}, ожидалось {len(combos) * 64}"
 for r in rows:
     q = float(r["quantity"])
-    assert q == q and q >= 0, f"плохой quantity: {r}"
+    assert math.isfinite(q) and q >= 0, f"плохой quantity: {r}"
 print(f"  формат OK: {len(rows):,} строк, 64 даты, {len(combos):,} пар склад x товар")
 PY
 

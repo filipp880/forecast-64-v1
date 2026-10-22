@@ -193,7 +193,7 @@ class LightGBMForecastModel(BaseForecastModel):
             raise RuntimeError("Модель не обучена — сначала вызовите fit()")
         x = self._encode(features, fit=False)
         return np.asarray(
-            self.booster.predict(x, num_iteration=self._best_iteration), dtype="float64"
+            self.booster.predict(x, num_iteration=self._best_iteration, num_threads=int(self.params.get("threads", 8))), dtype="float64"
         )
 
     @property

@@ -43,7 +43,7 @@ from app.features import HORIZON, KEY, LOOKBACK_DAYS, build_panel
 from app.metrics import METRIC_NAMES, compute_all_metrics, format_metrics
 from evaluate import DATA_KEY, HORIZON_BUCKETS, full_cutoffs
 
-BASELINE_NAMES = ("zero", "last", "mean28", "mean90", "dow")
+BASELINE_NAMES = ("zero", "last", "mean28", "mean90", "dow", "mean28_round", "mean90_round", "dow_round")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -88,6 +88,10 @@ def baseline_forecast(
     series_index: pd.DataFrame,
 ) -> pd.DataFrame:
     """Прогноз бейзлайна: серия × горизонт, посчитан строго по данным до среза."""
+    if method.endswith("_round"):
+        result = baseline_forecast(panel, cutoff, method[:-6], horizon, series_index)
+        result["quantity"] = np.rint(result["quantity"])
+        return result
     dates = pd.date_range(cutoff + pd.Timedelta(days=1), periods=horizon, freq="D")
     grid = series_index.assign(_k=1).merge(
         pd.DataFrame({"date": dates, "_k": 1}), on="_k"
@@ -175,8 +179,10 @@ def main(argv: list[str] | None = None) -> int:
 
     for cutoff in cutoffs:
         truth = truth_for(panel, cutoff, args.horizon)
+        truth["origin"] = cutoff.strftime("%Y-%m-%d")
         for method in methods:
             forecast = baseline_forecast(panel, cutoff, method, args.horizon, series_index)
+            forecast["origin"] = cutoff.strftime("%Y-%m-%d")
             metrics = compute_all_metrics(
                 truth.drop(columns="h"), forecast.drop(columns="h")
             )
@@ -184,7 +190,9 @@ def main(argv: list[str] | None = None) -> int:
             per_cutoff[method].append(
                 {"cutoff": str(cutoff.date()), "rows": int(len(truth)), "metrics": metrics}
             )
-            pooled[method][0].append(truth)
+            truth["origin"] = cutoff.strftime("%Y-%m-%d")
+            forecast["origin"] = cutoff.strftime("%Y-%m-%d")
+            pooled[method][0].append(truth.copy())
             pooled[method][1].append(forecast)
 
         best = min(
