@@ -1,32 +1,15 @@
-"""Пять метрик ТЗ (п. 5) — используются в ``train.py`` и ``evaluate.py``.
+"""Five weekly metrics with exact key alignment and no submission repair.
 
-Семантика:
-
-- SMAPE — **по сериям** (склад × товар), затем среднее; дни, где факт=0 и
-  прогноз=0, **входят** в среднее как 0% (п. 5.5 ТЗ; решение судей — шаблон
-  ``score.py`` из раздела 9 исключал такие дни через ``mask = denominator > 0``
-  и при итоговой оценке использоваться не будет);
-- WAPE / RMSE / RMSLE — **глобально**; RMSLE через ``log1p``;
-- |Bias| — **по сериям** (серии с ``mean(y)=0`` исключаются), затем среднее;
-- прогноз перед расчётом: пропуски → 0, отрицательные значения → 0.
-
-Реализация векторизована: серии кодируются целыми числами (hash) и агрегируются
-через ``groupby`` — цикл «по каждой серии маска по всем строкам» на 5 млрд сравнений
-строк не используется.
-
-Веса ТЗ: SMAPE 50%, WAPE 20%, RMSE 15%, |Bias| 10%, RMSLE 5% (см.
-``METRIC_WEIGHTS``; нормализация и итоговый score — на стороне организаторов).
+SMAPE and absolute Bias average equally over warehouse/article series.
+Zero/zero points remain in SMAPE. WAPE, RMSE and RMSLE are global.
 """
 
 from __future__ import annotations
 
-import logging
 from typing import Dict, Optional
 
 import numpy as np
 import pandas as pd
-
-logger = logging.getLogger(__name__)
 
 METRIC_WEIGHTS: Dict[str, float] = {
     "smape": 0.50,
@@ -36,12 +19,12 @@ METRIC_WEIGHTS: Dict[str, float] = {
     "rmsle": 0.05,
 }
 
-KEY_COLUMNS = ["date", "warehouse_name", "article"]
+KEY_COLUMNS = ["week", "warehouse_name", "article"]
 METRIC_NAMES = ("smape", "wape", "rmse", "bias", "rmsle")
 
 
 def smape_series(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    """SMAPE одной серии, в процентах (0..200); дни «0 против 0» дают 0%."""
+    """SMAPE одной серии, в процентах (0..200); недели «0 против 0» дают 0%."""
     numerator = np.abs(y_true - y_pred)
     denominator = (np.abs(y_true) + np.abs(y_pred)) / 2.0
     ratio = np.zeros_like(numerator, dtype="float64")
@@ -58,8 +41,7 @@ def _series_codes(series_ids: np.ndarray) -> np.ndarray:
 def smape(y_true: np.ndarray, y_pred: np.ndarray, series_ids: np.ndarray) -> float:
     """SMAPE по сериям (склад × товар), усреднённый.
 
-    Дни, где факт=0 и прогноз=0, входят в среднее серии как 0% — определение
-    п. 5.5 ТЗ (подтверждено судьями); шаблон ``score.py`` исключал такие дни.
+    Недели, где факт=0 и прогноз=0, входят в среднее серии как 0%.
     """
     if len(y_true) == 0:
         return 0.0
@@ -74,9 +56,10 @@ def smape(y_true: np.ndarray, y_pred: np.ndarray, series_ids: np.ndarray) -> flo
 def wape(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """WAPE — глобально, в процентах."""
     denominator = np.sum(np.abs(y_true))
+    numerator = np.sum(np.abs(y_true - y_pred))
     if denominator == 0:
-        return 0.0
-    return float(np.sum(np.abs(y_true - y_pred)) / denominator * 100.0)
+        return 0.0 if numerator == 0 else 100.0
+    return float(numerator / denominator * 100.0)
 
 
 def rmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
@@ -115,53 +98,64 @@ def rmsle(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 
 
 def compute_all_metrics(df_true: pd.DataFrame, df_pred: pd.DataFrame) -> Dict[str, float]:
-    """Все 5 метрик для пары (факт, прогноз).
+    """Compute metrics only after strict weekly key and value validation.
 
-    Оба фрейма — с колонками ``date, warehouse_name, article, quantity``.
-    Как в ``score.py``: merge — left от факта, пропуски прогноза → 0,
-    отрицательные прогнозы клиппятся в 0. Дубликатов ключа быть не должно.
+    ``origin`` is an optional extra key and must occur in both frames.
+    Partial horizons are accepted for diagnostics; the submission validator
+    separately enforces the complete nine-week calendar.
     """
+    from .submission import _dates
+
     df_true, df_pred = df_true.copy(), df_pred.copy()
-    for frame in (df_true, df_pred):
-        frame["date"] = pd.to_datetime(frame["date"], errors="raise")
-        frame["quantity"] = pd.to_numeric(frame["quantity"], errors="raise").astype(float)
-        if "origin" in frame:
-            frame["origin"] = pd.to_datetime(frame["origin"], errors="raise")
-        for column in ("warehouse_name", "article"):
-            frame[column] = frame[column].astype("string")
-    keys = KEY_COLUMNS + (["origin"] if "origin" in df_true and "origin" in df_pred else [])
     if ("origin" in df_true) != ("origin" in df_pred):
         raise ValueError("origin должен присутствовать и в факте, и в прогнозе")
+    keys = KEY_COLUMNS + (["origin"] if "origin" in df_true else [])
     for name, frame in (("truth", df_true), ("prediction", df_pred)):
+        missing = set([*keys, "quantity"]) - set(frame.columns)
+        if missing:
+            raise ValueError(f"Missing columns in {name}: {sorted(missing)}")
+        if frame.empty:
+            raise ValueError(f"Empty {name}")
+        frame["week"] = _dates(frame["week"])
+        if not frame.week.dt.weekday.eq(0).all():
+            raise ValueError(f"Weeks must start on Monday: {name}")
+        frame["quantity"] = pd.to_numeric(frame["quantity"], errors="raise").astype(float)
+        if "origin" in frame:
+            frame["origin"] = _dates(frame["origin"], "origin")
+        for column in ("warehouse_name", "article"):
+            frame[column] = frame[column].astype("string")
+            if frame[column].isna().any() or frame[column].str.strip().eq("").any():
+                raise ValueError(f"Empty {column}: {name}")
         if frame[keys].isna().any().any() or frame.duplicated(keys).any():
             raise ValueError(f"Пустые или повторяющиеся ключи {name}: {keys}")
-        if not np.isfinite(pd.to_numeric(frame["quantity"], errors="coerce").to_numpy(float)).all():
+        quantity = frame["quantity"].to_numpy(float)
+        if not np.isfinite(quantity).all() or (quantity < 0).any():
             raise ValueError(f"Некорректные quantity: {name}")
-    if (df_true["quantity"] < 0).any():
-        raise ValueError("Отрицательный факт quantity")
+    truth_keys = pd.MultiIndex.from_frame(df_true[keys])
+    pred_keys = pd.MultiIndex.from_frame(df_pred[keys])
+    if len(truth_keys.difference(pred_keys)) or len(pred_keys.difference(truth_keys)):
+        raise ValueError("Truth and prediction keys must match exactly")
     df = df_true.merge(
-        df_pred,
+        df_pred[[*keys, "quantity"]],
         on=keys,
         how="left",
         suffixes=("_true", "_pred"),
         validate="one_to_one",
     )
-    nan_count = int(df["quantity_pred"].isna().sum())
-    if nan_count > 0:
-        logger.warning("Пропуски в прогнозе: %d строк — заполнены нулями", nan_count)
-    df["quantity_pred"] = df["quantity_pred"].fillna(0.0).clip(lower=0)
-
     y_true = df["quantity_true"].to_numpy(dtype="float64")
     y_pred = df["quantity_pred"].to_numpy(dtype="float64")
     series_ids = pd.MultiIndex.from_frame(df[["warehouse_name", "article"]]).to_numpy()
 
-    return {
+    result = {
         "smape": smape(y_true, y_pred, series_ids),
         "wape": wape(y_true, y_pred),
         "rmse": rmse(y_true, y_pred),
         "bias": bias_abs(y_true, y_pred, series_ids),
         "rmsle": rmsle(y_true, y_pred),
     }
+    if not np.isfinite(list(result.values())).all():
+        raise ValueError("Nonfinite metric: quantity values overflow the metric calculation")
+    return result
 
 
 def format_metrics(metrics: Dict[str, float]) -> str:

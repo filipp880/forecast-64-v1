@@ -1,517 +1,266 @@
 #!/usr/bin/env python3
-"""Обучение модели прогноза продаж (регрессор на 64 дня — простая база).
-
-Тип модели выбирается через ``--model-type`` (реестр в ``app/models``),
-по умолчанию ``lgbm``. Параметры модели
-задаются JSON-строкой ``--model-params`` поверх значений по умолчанию из
-класса модели. Новая модель (HistGradientBoosting, hurdle-композиция и т.п.)
-добавляется как новый класс в ``app/models`` — этот скрипт править не нужно.
-
-Таргет трансформируется по правилу класса модели (``target_transform``,
-по умолчанию ``log1p(quantity)``).
-
-Постобработка прогноза — ``--zero-threshold`` (обнулять прогнозы ниже порога)
-и ``--round-int`` (округлять до целых): применяется и к метрикам валидации,
-и при инференсе API (записывается в ``config.json`` → ``postprocess``).
-Подбирается без переобучения: ``python evaluate.py --sweep-thresholds ...``.
-
-Схема обучения — строгий holdout по времени (training_scheme=strict-holdout):
-
-1. обучающие срезы — только те, чьи таргеты заканчиваются до окна отбора
-   (иначе утечка: модель «видела» бы конец проверяемых периодов);
-2. early stopping — на окне отбора (предпоследние ``--horizon`` дней данных);
-3. пять метрик ТЗ (SMAPE/WAPE/RMSE/|Bias|/RMSLE, см. ``app/metrics.py``)
-   считаются на тестовом окне — последних ``--horizon`` днях данных, которые
-   ранняя остановка не видела; метрики и параметры пишутся в ``config.json``
-   (``validation``);
-4. финальный refit — модель переобучается на ВСЕХ срезах (включая последние
-   дни) с зафиксированным числом итераций из шага 2; это модель «в бой»
-   (``--no-refit`` отключает).
-
-Если данных мало для строгой схемы, происходит автоматический откат к простой
-схеме: train = все срезы кроме последнего, валидация = последний срез.
-Честная оценка по нескольким срезам истории — ``evaluate.py``.
-
-Признаки считаются по истории не глубже ``--lookback`` (по умолчанию 180)
-дней до каждого среза обучения — в точности как при инференсе в API, куда
-приходят только последние ~180 дней.
-
-Примеры запуска (из директории forecast-container/):
-    python train.py \
-        --sales ../data/sales_dataset_hakaton_train.csv \
-        --stock ../data/stock_dataset_hakaton_train.csv \
-        --out-dir model
-
-Быстрая проба (несколько срезов и мало итераций):
-    python train.py --max-cutoffs 4 --model-params '{"n_estimators": 300}'
-
-Каждый прогон дописывает строку в журнал экспериментов (``experiments.csv``):
-тег (``--tag``), конфигурация, метрики, длительность — для сравнения вариантов
-(``--no-log`` отключает запись, ``--log-file`` меняет файл).
-
-Детерминизм: фиксированы seed и thread_count, обучение на CPU.
-Повторный запуск на тех же данных даёт ту же модель и тот же прогноз.
-"""
-
+"""Train a direct nine-week model with chronological selection and final refit."""
 from __future__ import annotations
 
 import argparse
-import csv
+import gc
+import hashlib
 import json
 import pickle
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from app.features import (
-    CAT_FEATURES,
-    FEATURE_COLUMNS,
-    HORIZON,
-    KEY,
-    LOOKBACK_DAYS,
-    build_panel,
-    make_training_frame,
-    preprocessing_spec,
+    CAT_FEATURES, FEATURE_COLUMNS, HORIZON, KEY, LOOKBACK_DAYS,
+    PREPROCESSING_VERSION, build_panel, forecast_end, make_training_frame,
+    preprocessing_spec, truncate_history,
 )
-from app.models import (
-    available_model_types,
-    get_model_class,
-    inverse_target,
-    postprocess_forecast,
-    transform_target,
-)
-from app.models.base import format_duration
 from app.metrics import compute_all_metrics, format_metrics
+from app.models import available_model_types, get_model_class, transform_target
+from app.temporal import last_complete_sunday
+
+COMPETITION_CUTOFF = pd.Timestamp("2026-07-26")
 
 
-def make_cutoffs(
-    panel: pd.DataFrame,
-    lookback_days: int,
-    horizon: int,
-    step_days: int,
-) -> list[pd.Timestamp]:
-    """Сетка дат-отсечек: от ``первая дата + lookback`` до ``последняя - 1``."""
-    first = panel["date"].min()
-    last = panel["date"].max()
-    start = first + pd.Timedelta(days=lookback_days)
-    end = last - pd.Timedelta(days=1)
-    if start > end:
-        raise ValueError(
-            f"Истории не хватает: нужно минимум {lookback_days + horizon} дней данных"
-        )
-    return list(pd.date_range(start, end, freq=f"{step_days}D"))
+def make_cutoffs(panel, lookback_days=180, horizon=9, step_days=28):
+    """Sunday origins; labels are restricted to complete target weeks later."""
+    if step_days <= 0 or step_days % 7:
+        raise ValueError("cutoff-step must be a positive multiple of seven days")
+    first = pd.Timestamp(panel.date.min()) + pd.Timedelta(days=lookback_days - 1)
+    first += pd.Timedelta(days=(6 - first.weekday()) % 7)
+    last = last_complete_sunday(panel.date.max()) - pd.Timedelta(days=7)
+    if first > last:
+        raise ValueError("Not enough history for a complete target week")
+    return list(pd.date_range(first, last, freq=f"{step_days}D"))
 
 
-def holdout_cutoffs(panel: pd.DataFrame, horizon: int) -> tuple[pd.Timestamp, pd.Timestamp]:
-    """Срезы строгой схемы: ``(срез отбора, срез теста)``.
-
-    Тестовое окно — последние ``horizon`` дней данных, окно отбора —
-    ``horizon`` дней перед ним. Оба среза дают полный горизонт 1..horizon.
-    """
-    last = panel["date"].max()
-    test_cutoff = last - pd.Timedelta(days=horizon)
-    select_cutoff = test_cutoff - pd.Timedelta(days=horizon)
-    return select_cutoff, test_cutoff
+def holdout_cutoffs(panel, horizon=9):
+    last = last_complete_sunday(panel.date.max())
+    test = last - pd.Timedelta(weeks=horizon)
+    selection = test - pd.Timedelta(weeks=horizon)
+    return selection, test
 
 
-def build_dataset(
-    panel: pd.DataFrame,
-    cutoffs: list[pd.Timestamp],
-    horizon: int,
-    lookback_days: int,
-    stock_policy: str = "window",
-) -> list[pd.DataFrame]:
-    """По каждому срезу — рамка признаков + таргет (горизонты только внутри данных)."""
-    frames: list[pd.DataFrame] = []
-    last_date = panel["date"].max()
-    started = time.time()
-    for index, cutoff in enumerate(cutoffs, start=1):
-        horizons = [
-            h
-            for h in range(1, horizon + 1)
-            if cutoff + pd.Timedelta(days=h) <= last_date
-        ]
-        if not horizons:
+def build_dataset(panel, cutoffs, horizon=9, lookback_days=180, stock_policy="window"):
+    """Use only horizons with seven available target days; never fake missing labels."""
+    frames = []
+    for i, cutoff in enumerate(cutoffs, 1):
+        complete = [h for h in range(1, horizon + 1)
+                    if forecast_end(cutoff, h) <= panel.date.max()]
+        if not complete:
             continue
-        frame = make_training_frame(panel, cutoff, horizons, lookback_days, stock_policy)
-        elapsed = time.time() - started
-        eta = elapsed / index * (len(cutoffs) - index)
-        print(
-            f"  [{index}/{len(cutoffs)}] срез {cutoff.date()}: {len(frame):,} строк, "
-            f"горизонт {len(horizons)} дн. (прошло {format_duration(elapsed)}, "
-            f"осталось ~{format_duration(eta)})",
-            flush=True,
-        )
+        frame = make_training_frame(panel, cutoff, complete, lookback_days, stock_policy)
+        frame["origin"] = pd.Timestamp(cutoff)
         frames.append(frame)
+        print(f"  [{i}/{len(cutoffs)}] {pd.Timestamp(cutoff).date()}: {len(frame):,} rows, {len(complete)} complete weeks", flush=True)
     if not frames:
-        raise ValueError("Не удалось собрать обучающую выборку: слишком мало данных")
+        raise ValueError("No complete training weeks available")
     return frames
 
 
-def evaluate_frame(
-    model,
-    frame: pd.DataFrame,
-    zero_threshold: float = 0.0,
-    round_int: bool = False,
-) -> dict:
-    """Пять метрик ТЗ на рамке обучения по её собственному таргету.
-
-    Постобработка — та же, что будет на инференсе (``postprocess`` в config.json).
-    """
-    truth = frame[["date", *KEY]].copy()
-    truth["quantity"] = frame["target"].to_numpy(dtype="float64")
-    forecast = frame[["date", *KEY]].copy()
-    forecast["quantity"] = postprocess_forecast(
-        inverse_target(model.predict(frame), model.target_transform),
-        zero_threshold=zero_threshold,
-        round_int=round_int,
-    )
-    return compute_all_metrics(truth, forecast)
+def evaluate_frame(model, frame, zero_threshold=0.0, round_int=False, calibration=None):
+    truth = frame[["week", *KEY]].copy()
+    if "origin" in frame:
+        truth["origin"] = frame.origin
+    truth["quantity"] = frame.target.to_numpy(float)
+    pred = truth.drop(columns="quantity").copy()
+    pred["quantity"] = predictions_for(model, frame, zero_threshold, round_int, calibration)
+    return compute_all_metrics(truth, pred)
 
 
-EXP_LOG_COLUMNS = [
-    "timestamp",
-    "tag",
-    "scheme",
-    "test_cutoff",
-    "model_type",
-    "max_cutoffs",
-    "cutoff_step",
-    "iterations",
-    "depth",
-    "learning_rate",
-    "refit",
-    "early_stopping_rounds",
-    "seed",
-    "lookback",
-    "horizon",
-    "es_iterations",
-    "zero_threshold",
-    "round_int",
-    "n_cutoffs",
-    "train_rows",
-    "smape",
-    "wape",
-    "rmse",
-    "bias",
-    "rmsle",
-    "duration_sec",
-    "out_dir",
-]
+def predictions_for(model, frame, zero_threshold=0.0, round_int=False, calibration=None):
+    from app.calibration import forecast_quantities
+    return forecast_quantities(model, frame, zero_threshold, round_int, calibration)
 
 
-def log_experiment(
-    args, model, validation_info: dict | None, n_cutoffs: int, train_rows: int, duration_sec: float
-) -> Path:
-    """Дописывает строку эксперимента в CSV-журнал (сравнение прогонов)."""
-    metrics = (validation_info or {}).get("metrics") or {}
-    early_stopping = (validation_info or {}).get("early_stopping") or {}
-    journal = model.journal_params()
-
-    def metric(name: str):
-        value = metrics.get(name)
-        return round(float(value), 4) if value is not None else ""
-
-    row = [
-        datetime.now().isoformat(timespec="seconds"),
-        args.tag,
-        (validation_info or {}).get("scheme", ""),
-        (validation_info or {}).get("cutoff", ""),
-        model.name,
-        args.max_cutoffs if args.max_cutoffs else "all",
-        args.cutoff_step,
-        journal.get("iterations", ""),
-        journal.get("depth", ""),
-        journal.get("learning_rate", ""),
-        args.refit,
-        args.early_stopping_rounds,
-        args.seed,
-        args.lookback,
-        args.horizon,
-        early_stopping.get("iterations", ""),
-        args.zero_threshold,
-        args.round_int,
-        n_cutoffs,
-        train_rows,
-        metric("smape"),
-        metric("wape"),
-        metric("rmse"),
-        metric("bias"),
-        metric("rmsle"),
-        round(duration_sec),
-        args.out_dir,
-    ]
-    path = Path(args.log_file)
-    new_file = not path.exists() or path.stat().st_size == 0
-    if not new_file:
-        header = path.open("r", encoding="utf-8").readline().strip()
-        if header != ",".join(EXP_LOG_COLUMNS):
-            backup = path.with_name(path.name + ".bak")
-            path.replace(backup)
-            print(f"Схема журнала изменилась — старая версия сохранена: {backup}")
-            new_file = True
-    with path.open("a", newline="", encoding="utf-8") as handle:
-        writer = csv.writer(handle)
-        if new_file:
-            writer.writerow(EXP_LOG_COLUMNS)
-        writer.writerow(row)
-    return path
+def compact_params(estimators=800):
+    """A bounded CPU recipe; selected iteration counts are reused by refit."""
+    return {
+        "weight_hurdle": 0.3,
+        "hurdle": {"classifier": {"n_estimators": estimators},
+                   "regressor": {"n_estimators": estimators}},
+        "lgbm": {"n_estimators": estimators},
+    }
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Обучение модели прогноза (64 дня)")
-    parser.add_argument(
-        "--sales",
-        default="../data/sales_dataset_hakaton_train.csv",
-        help="CSV с продажами (формат sales_dataset_hakaton.csv)",
-    )
-    parser.add_argument(
-        "--stock",
-        default="../data/stock_dataset_hakaton_train.csv",
-        help="CSV с остатками (формат stock_dataset_hakaton.csv)",
-    )
-    parser.add_argument("--out-dir", default="model", help="Куда сохранить модель и config.json")
-    parser.add_argument(
-        "--model-type",
-        default="lgbm",
-        choices=available_model_types(),
-        help="Тип модели из реестра app/models (по умолчанию lgbm)",
-    )
-    parser.add_argument(
-        "--model-params",
-        default="{}",
-        help='JSON-объект с параметрами модели поверх значений по умолчанию: \'{"n_estimators": 300}\'',
-    )
-    parser.add_argument("--horizon", type=int, default=HORIZON, help="Горизонт прогноза, дней")
-    parser.add_argument("--lookback", type=int, default=LOOKBACK_DAYS, help="Глубина истории для признаков")
-    parser.add_argument("--cutoff-step", type=int, default=28, help="Шаг между срезами обучения, дней")
-    parser.add_argument(
-        "--max-cutoffs",
-        type=int,
-        default=None,
-        help="Оставить только N последних обучающих срезов (и срезов refit'а) — для быстрой пробы",
-    )
-    parser.add_argument(
-        "--refit",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Финальный refit на всех срезах с отобранным числом итераций (--no-refit отключает)",
-    )
-    parser.add_argument("--early-stopping-rounds", type=int, default=100)
-    parser.add_argument(
-        "--zero-threshold",
-        type=float,
-        default=0.0,
-        help="Обнулять прогнозы ниже порога (постобработка под SMAPE п. 5.5; 0 — выключено)",
-    )
-    parser.add_argument(
-        "--round-int",
-        action=argparse.BooleanOptionalAction,
-        default=False,
-        help="Округлять прогноз до целых после обнуления (--no-round-int отключает)",
-    )
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--threads", type=int, default=8, help="Число потоков (фиксировано для детерминизма)")
-    parser.add_argument("--tag", default="", help="Метка эксперимента для журнала (что изменено)")
-    parser.add_argument(
-        "--log",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Дописывать результат в CSV-журнал экспериментов (--no-log отключает)",
-    )
-    parser.add_argument(
-        "--log-file",
-        default="experiments.csv",
-        help="Файл журнала экспериментов (по умолчанию experiments.csv рядом с train.py)",
-    )
+def save_artifact(model, out_dir, training_end, selection_end, rows, cutoffs,
+                  lookback=180, horizon=9, postprocess=None, validation=None,
+                  calibration=None, provenance=None):
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    model_path = out_dir / f"model{model.file_suffix}"
+    model.save(model_path)
+    spec = {**preprocessing_spec(stock_policy="window", lookback_days=lookback, horizon=horizon),
+            "target_transform": model.target_transform}
+    preprocessor = out_dir / "preprocessor.pkl"
+    preprocessor.write_bytes(pickle.dumps(spec, protocol=4))
+    config = {
+        "model_type": model.name, "model_file": model_path.name,
+        "preprocessor_file": preprocessor.name, "granularity": "week",
+        "horizon": horizon, "forecast_weeks": horizon,
+        "preprocessing_version": PREPROCESSING_VERSION,
+        "stock_policy": "window", "stock_aggregation": "sum",
+        "negative_stock_policy": "preserve", "forecast_alignment": "next_calendar_monday",
+        "lookback_days": lookback, "target_transform": model.target_transform,
+        "feature_columns": list(FEATURE_COLUMNS), "cat_features": list(CAT_FEATURES),
+        "postprocess": postprocess or {"zero_threshold": 0.0, "round_int": False},
+        "training_data_end": str(pd.Timestamp(training_end).date()),
+        "selection_data_end": str(pd.Timestamp(selection_end).date()),
+        "random_seed": int(model.params.get("seed", 42)),
+        "thread_count": int(model.params.get("threads", 8)),
+        "n_cutoffs": int(cutoffs), "train_rows": int(rows), "model_params": model.params,
+        "trained_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "coverage_policy": "explicit_reference_or_observed_input_pairs",
+        "model_artifact_sha256": hashlib.sha256(model_path.read_bytes()).hexdigest(),
+        "preprocessor_sha256": hashlib.sha256(preprocessor.read_bytes()).hexdigest(),
+        "validation": validation,
+    }
+    if calibration:
+        config["calibration"] = calibration
+    if provenance:
+        config["provenance"] = provenance
+    (out_dir / "config.json").write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+    return config
 
-    args = parser.parse_args(argv)
+
+def parse_args(argv=None):
+    ap = argparse.ArgumentParser(description="Train direct weekly forecasts, horizon nine weeks")
+    ap.add_argument("--sales", type=Path, default=Path("../data/sales_dataset_hakaton_train.csv"))
+    ap.add_argument("--stock", type=Path, default=Path("../data/stock_dataset_hakaton_train.csv"))
+    ap.add_argument("--history-cutoff", default="2026-07-26")
+    ap.add_argument("--out-dir", type=Path, default=Path("model_weekly"))
+    ap.add_argument("--model-type", choices=available_model_types(), default="blend")
+    ap.add_argument("--model-params", default="{}")
+    ap.add_argument("--horizon", type=int, default=HORIZON)
+    ap.add_argument("--lookback", type=int, default=LOOKBACK_DAYS)
+    ap.add_argument("--cutoff-step", type=int, default=28)
+    ap.add_argument("--max-cutoffs", type=int)
+    ap.add_argument("--estimators", type=int, default=800)
+    ap.add_argument("--early-stopping-rounds", type=int, default=60)
+    ap.add_argument("--threads", type=int, default=8)
+    ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--refit", action=argparse.BooleanOptionalAction, default=True)
+    ap.add_argument("--round-int", action=argparse.BooleanOptionalAction, default=False)
+    ap.add_argument("--zero-threshold", type=float, default=0.0)
+    ap.add_argument("--calibration-file", type=Path)
+    ap.add_argument("--overwrite", action="store_true")
+    args = ap.parse_args(argv)
+    if args.horizon != 9:
+        ap.error("The submission horizon is exactly nine weeks")
+    if args.lookback < 90 or args.cutoff_step <= 0 or args.cutoff_step % 7:
+        ap.error("lookback>=90; cutoff-step must be a positive multiple of seven")
+    if args.threads <= 0 or args.estimators <= 0 or (args.max_cutoffs is not None and args.max_cutoffs <= 0):
+        ap.error("threads, estimators and max-cutoffs must be positive")
+    cutoff = pd.Timestamp(args.history_cutoff)
+    if cutoff > COMPETITION_CUTOFF:
+        ap.error("Competition training cannot use data after 2026-07-26")
     try:
-        params = json.loads(args.model_params)
+        supplied = json.loads(args.model_params)
     except json.JSONDecodeError as exc:
-        parser.error(f"--model-params: некорректный JSON ({exc})")
-    if not isinstance(params, dict):
-        parser.error('--model-params должен быть JSON-объектом, например \'{"n_estimators": 300}\'')
-    args.model_params = params
-    if args.horizon != HORIZON:
-        parser.error("Для submission необходим горизонт ровно 64 дня")
-    if args.lookback < 90 or args.cutoff_step <= 0 or (args.max_cutoffs is not None and args.max_cutoffs <= 0):
-        parser.error("lookback>=90, cutoff-step>0, max-cutoffs>0")
+        ap.error(str(exc))
+    if not isinstance(supplied, dict):
+        ap.error("model-params must be a JSON object")
+    if args.model_type == "blend":
+        params = compact_params(args.estimators)
+    elif args.model_type == "hurdle":
+        params = {"classifier": {"n_estimators": args.estimators}, "regressor": {"n_estimators": args.estimators}}
+    elif args.model_type == "catboost":
+        params = {"iterations": args.estimators}
+    else:
+        params = {"n_estimators": args.estimators}
+    params.update(supplied)
+    args.model_params = {"seed": args.seed, "threads": args.threads, **params}
     return args
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv=None):
     args = parse_args(argv)
-    started = time.time()
-
-    def step(title: str) -> None:
-        """Отметка этапа обучения с общим прошедшим временем — «ноутбучный» прогресс."""
-        print(f"--- {title} (прошло {format_duration(time.time() - started)}) ---", flush=True)
-
-    model_cls = get_model_class(args.model_type)
-    model = model_cls({"seed": args.seed, "threads": args.threads, **args.model_params})
-    print(f"Тип модели: {model_cls.name}, параметры: {model.params}")
-    print(f"Данные: sales={args.sales}, stock={args.stock}")
-    print("(обучение идёт на полном train-наборе; сэмплы sample_*_6mo.csv — только для тестов API)")
-
-    step("Загрузка данных и сборка панели")
+    if (args.out_dir / "config.json").exists() and not args.overwrite:
+        raise FileExistsError("Artifact exists; choose another --out-dir or pass --overwrite")
+    started = time.perf_counter()
     sales = pd.read_csv(args.sales, parse_dates=["date"])
     stock = pd.read_csv(args.stock, parse_dates=["date"])
+    sales, stock = truncate_history(sales, stock, args.history_cutoff)
     panel = build_panel(sales, stock)
-    n_series = panel.groupby(["warehouse_name", "article"]).ngroups
-    print(
-        f"  панель: {len(panel):,} строк, {panel['date'].nunique()} дней, "
-        f"{n_series:,} серий ({panel['date'].min().date()} .. {panel['date'].max().date()})"
-    )
-
+    del sales, stock
+    gc.collect()
+    selection, test = holdout_cutoffs(panel, args.horizon)
     cutoffs = make_cutoffs(panel, args.lookback, args.horizon, args.cutoff_step)
-    select_cutoff, test_cutoff = holdout_cutoffs(panel, args.horizon)
-    eligible = [
-        c for c in cutoffs if c + pd.Timedelta(days=args.horizon) <= select_cutoff
-    ]
-    strict = bool(eligible) and select_cutoff > panel["date"].min()
-
-    if not strict:
-        raise ValueError("Недостаточно истории для независимых окон train/select/test; legacy-split отключён")
-    validation_info = None
-    if strict:
-        last_date = panel["date"].max()
-        train_cutoffs = eligible[-args.max_cutoffs :] if args.max_cutoffs else eligible
-        day = pd.Timedelta(days=1)
-        print(
-            f"Схема: строгий holdout — отбор {select_cutoff.date() + day}..{test_cutoff.date()}, "
-            f"тест {test_cutoff.date() + day}..{last_date.date()}",
-            flush=True,
-        )
-        step(
-            f"Сборка обучающей выборки: {len(train_cutoffs)} срезов, "
-            f"таргеты заканчиваются не позже {select_cutoff.date()}"
-        )
-        train_frames = build_dataset(panel, train_cutoffs, args.horizon, args.lookback)
-        if any(frame["date"].max() > select_cutoff for frame in train_frames):
-            raise RuntimeError("Утечка: таргеты обучающих срезов заходят в окно отбора")
-        train = pd.concat(train_frames, ignore_index=True)
-
-        step(f"Сборка окон отбора и теста (h=1..{args.horizon})")
-        valid_select = build_dataset(panel, [select_cutoff], args.horizon, args.lookback)[0]
-        valid_test = build_dataset(panel, [test_cutoff], args.horizon, args.lookback)[0]
-
-        y_train = transform_target(train["target"].to_numpy(dtype="float64"), model.target_transform)
-        y_select = transform_target(valid_select["target"].to_numpy(dtype="float64"), model.target_transform)
-
-        if args.early_stopping_rounds and not model_cls.supports_early_stopping:
-            print(f"  прим.: модель '{model_cls.name}' не поддерживает early stopping — параметр пропущен")
-        step(
-            f"Обучение с early stopping: train {len(train):,} строк, "
-            f"окно отбора {len(valid_select):,} строк"
-        )
-        model.fit(
-            train,
-            y_train,
-            x_valid=valid_select,
-            y_valid=y_select,
-            early_stopping_rounds=args.early_stopping_rounds,
-        )
-        n_iterations = model.selected_iterations
-
-        step(f"Метрики ТЗ на тестовом окне {test_cutoff.date() + day}..{last_date.date()}")
-        metrics = evaluate_frame(
-            model, valid_test, args.zero_threshold, args.round_int
-        )
-        detail = f"  (iterations={n_iterations})" if n_iterations is not None else ""
-        print(
-            f"  {format_metrics(metrics)}{detail}",
-            flush=True,
-        )
-
-        train_rows_final, n_cutoffs_final = len(train), len(train_frames)
-        if args.refit:
-            refit_cutoffs = cutoffs[-args.max_cutoffs :] if args.max_cutoffs else cutoffs
-            step(f"Refit на всех срезах ({len(refit_cutoffs)} шт.) — боевая модель")
-            refit_frames = build_dataset(panel, refit_cutoffs, args.horizon, args.lookback)
-            refit = pd.concat(refit_frames, ignore_index=True)
-            y_refit = transform_target(refit["target"].to_numpy(dtype="float64"), model.target_transform)
-            refit_iterations = (
-                n_iterations
-                if n_iterations is not None
-                else model.journal_params().get("iterations", "")
-            )
-            print(
-                f"  refit {len(refit):,} строк, iterations={refit_iterations}",
-                flush=True,
-            )
-            model.fit(refit, y_refit, n_iterations=n_iterations)
-            train_rows_final, n_cutoffs_final = len(refit), len(refit_frames)
-
-        validation_info = {
-            "scheme": "strict-holdout",
-            "cutoff": str(test_cutoff.date()),
-            "max_horizon": args.horizon,
-            "rows": int(len(valid_test)),
-            "metrics": metrics,
-            "early_stopping": {
-                "cutoff": str(select_cutoff.date()),
-                "rows": int(len(valid_select)),
-                "iterations": n_iterations,
-            },
-        }
-    step("Сохранение модели, препроцессора и конфига")
-    out_dir = Path(args.out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    model_path = out_dir / f"model{model_cls.file_suffix}"
-    model.save(model_path)
-
-    preprocessor_path = out_dir / "preprocessor.pkl"
-    preprocessor_path.write_bytes(
-        pickle.dumps(
-            {
-                **preprocessing_spec(lookback_days=args.lookback, horizon=args.horizon),
-                "target_transform": model.target_transform,
-                "trained_at": datetime.now().isoformat(timespec="seconds"),
-            }
-        )
-    )
-
-    config = {
-        "model_type": model_cls.name,
-        "model_file": model_path.name,
-        "preprocessor_file": preprocessor_path.name,
-        "horizon": args.horizon,
-        "lookback_days": args.lookback,
-        "stock_policy": "window",
-        "target_transform": model.target_transform,
-        "postprocess": {
-            "zero_threshold": args.zero_threshold,
-            "round_int": args.round_int,
-        },
-        "random_seed": args.seed,
-        "thread_count": args.threads,
-        "feature_columns": FEATURE_COLUMNS,
-        "cat_features": CAT_FEATURES,
-        "training_data_end": str(panel["date"].max().date()) if args.refit else str(select_cutoff.date()),
-        "selection_data_end": str(test_cutoff.date()),
-        "trained_at": datetime.now().isoformat(timespec="seconds"),
-        "n_cutoffs": n_cutoffs_final,
-        "train_rows": int(train_rows_final),
-        "model_params": model.params,
-        "validation": validation_info,
-    }
-    config_path = out_dir / "config.json"
-    config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    print(f"Готово за {time.time() - started:.0f} с.")
-    print(f"Модель: {model_path}")
-    print(f"Препроцессор: {preprocessor_path}")
-    print(f"Конфиг: {config_path}")
-    if args.log:
-        log_path = log_experiment(
-            args, model, validation_info, n_cutoffs_final, train_rows_final, time.time() - started
-        )
-        print(f"Журнал: {log_path}")
+    eligible = [c for c in cutoffs if forecast_end(c, args.horizon) <= selection]
+    if args.max_cutoffs:
+        eligible = eligible[-args.max_cutoffs:]
+    if not eligible:
+        raise ValueError("Not enough data for independent train/selection/test windows")
+    print(f"Weekly selection origin {selection.date()}, confirmation origin {test.date()}", flush=True)
+    frames = build_dataset(panel, eligible, args.horizon, args.lookback)
+    train = pd.concat(frames, ignore_index=True)
+    del frames
+    initial_rows = len(train)
+    if (train.week + pd.Timedelta(days=6)).max() > selection:
+        raise RuntimeError("Training targets overlap selection window")
+    valid = make_training_frame(panel, selection, range(1, args.horizon + 1), args.lookback)
+    model = get_model_class(args.model_type)(args.model_params)
+    model.fit(train, transform_target(train.target.to_numpy(float), model.target_transform),
+              valid, transform_target(valid.target.to_numpy(float), model.target_transform),
+              args.early_stopping_rounds)
+    iterations = model.selected_iterations
+    del train, valid
+    gc.collect()
+    validation_frame = make_training_frame(panel, test, range(1, args.horizon + 1), args.lookback)
+    calibration = None
+    calibration_record = None
+    if args.calibration_file:
+        calibration_record = json.loads(args.calibration_file.read_text(encoding="utf-8"))
+        calibration = calibration_record.get("final_spec")
+        if calibration is None or model.name != "blend" or not calibration_record.get("confirmation_origin"):
+            raise ValueError("calibration-file requires a confirmed blend calibration")
+        calibration_end = forecast_end(pd.Timestamp(calibration_record["confirmation_origin"]), args.horizon)
+        if calibration_end > pd.Timestamp(args.history_cutoff):
+            raise ValueError("Calibration used facts beyond the authorized history cutoff")
+    validation = {"scheme": "weekly_chronological_holdout", "selection_origin": str(selection.date()),
+                  "confirmation_origin": str(test.date()), "target_end": str(forecast_end(test, 9).date()),
+                  "iterations": iterations,
+                  "metrics_kind": "out_of_sample_before_final_refit",
+                  "metrics": evaluate_frame(model, validation_frame, args.zero_threshold, args.round_int)}
+    if calibration_record:
+        validation["calibrated_metrics"] = evaluate_frame(model, validation_frame, args.zero_threshold, args.round_int, calibration)
+        validation["calibrated_metrics_kind"] = (
+            "diagnostic_calibration_seen_truth" if calibration_end > test else "out_of_sample_before_final_refit")
+        validation["independent_confirmation_source"] = str(args.calibration_file)
+    print(format_metrics(validation["metrics"]), flush=True)
+    del validation_frame
+    refit_cutoffs = cutoffs[-args.max_cutoffs:] if args.max_cutoffs else cutoffs
+    final_rows = initial_rows
+    training_end = selection
+    if args.refit:
+        frames = build_dataset(panel, refit_cutoffs, args.horizon, args.lookback)
+        refit = pd.concat(frames, ignore_index=True)
+        del frames
+        final_rows = len(refit)
+        training_end = (refit.week + pd.Timedelta(days=6)).max()
+        if training_end > pd.Timestamp(args.history_cutoff):
+            raise RuntimeError("Final labels exceed the authorized history cutoff")
+        model.fit(refit, transform_target(refit.target.to_numpy(float), model.target_transform), n_iterations=iterations)
+        del refit
+        gc.collect()
+    # Conservative provenance includes every inspected validation fact, even
+    # when the holdout metrics did not affect the fitted tree weights.
+    selection_end = max(forecast_end(test, args.horizon), calibration_end) if calibration_record else forecast_end(test, args.horizon)
+    config = save_artifact(model, args.out_dir, training_end, selection_end, final_rows,
+                           len(refit_cutoffs) if args.refit else len(eligible), args.lookback,
+                           args.horizon, {"zero_threshold": args.zero_threshold, "round_int": args.round_int},
+                           validation, calibration,
+                           {"history_cutoff": str(pd.Timestamp(args.history_cutoff).date()),
+                            "recipe": "direct_weekly", "seconds": round(time.perf_counter() - started, 3),
+                            "calibration_file": str(args.calibration_file) if args.calibration_file else None,
+                            "calibration_sha256": hashlib.sha256(args.calibration_file.read_bytes()).hexdigest() if args.calibration_file else None})
+    print(json.dumps({"model_dir": str(args.out_dir), "training_data_end": config["training_data_end"],
+                      "seconds": round(time.perf_counter() - started, 1)}, indent=2), flush=True)
     return 0
 
 

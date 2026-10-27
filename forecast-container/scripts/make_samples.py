@@ -38,6 +38,8 @@ def main() -> None:
     parser.add_argument("--days", type=int, default=184, help="Глубина истории в сэмпле (>=180)")
     parser.add_argument("--articles", type=int, default=50, help="Сколько артикулов оставить")
     args = parser.parse_args()
+    if args.days < 180 or args.articles < 1:
+        parser.error("--days must be at least 180 and --articles must be positive")
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -46,6 +48,11 @@ def main() -> None:
     sales = pd.read_csv(args.sales, parse_dates=["date"])
     print("Чтение остатков...")
     stock = pd.read_csv(args.stock, parse_dates=["date"])
+    stock_article = "article" if "article" in stock else "char_article"
+    if stock_article not in stock:
+        parser.error("Stock must contain article or char_article")
+    if "article" in stock and "char_article" in stock and not stock.article.astype("string").equals(stock.char_article.astype("string")):
+        parser.error("Conflicting article and char_article in stock")
 
     # Примеры формата — первые 100 строк (как в ТЗ)
     sales.head(100).to_csv(out_dir / "sample_sales.csv", index=False)
@@ -57,13 +64,13 @@ def main() -> None:
     first_date = last_date - pd.Timedelta(days=args.days - 1)
 
     sales_sample = sales[(sales["date"] >= first_date) & (sales["article"].isin(articles))].copy()
-    stock_sample = stock[(stock["date"] >= first_date) & (stock["article"].isin(articles))].copy()
+    stock_sample = stock[(stock["date"] >= first_date) & (stock["date"] <= last_date) & (stock[stock_article].isin(articles))].copy()
 
     negative_stock = int((stock_sample["stock"] < 0).sum())
     if negative_stock:
         print(
             f"  в сэмпле остатков строк с отрицательным stock: {negative_stock} — "
-            "оставлены (решение судей: допускаются, панель клиппит их в 0)"
+            "оставлены со знаком: отрицательные остатки означают резервы"
         )
 
     sales_sample.to_csv(out_dir / "sample_sales_6mo.csv", index=False)

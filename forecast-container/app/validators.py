@@ -1,9 +1,7 @@
 """Валидация входных CSV для POST /predict (п. 10.4 ТЗ).
 
-Отрицательный ``stock`` допускается: решение судей — эту часть требования
-к валидации игнорировать (в выгрузке организаторов такие строки встречаются).
-При построении панели отрицательные остатки клиппятся в 0 — ровно как при
-обучении, поэтому прогноз не искажается.
+Отрицательный ``stock`` допустим и сохраняется: это зарезервированный товар.
+Повторные stock-ключи суммируются в общей предобработке, не удаляются.
 """
 
 from __future__ import annotations
@@ -106,7 +104,11 @@ def _validate(df: pd.DataFrame, source: str, required: List[str]) -> List[str]:
 
 
 def validate_sales_csv(df: pd.DataFrame) -> List[str]:
-    return _validate(df, "sales", SALES_REQUIRED_COLS)
+    errors = _validate(df, "sales", SALES_REQUIRED_COLS)
+    source_key = ["date", "composite_division", "cities_name", "warehouse_name", "article"]
+    if not errors and df.duplicated(source_key).any():
+        errors.append("Повторные ключи sales date + composite_division + cities_name + warehouse_name + article")
+    return errors
 
 
 def validate_stock_csv(df: pd.DataFrame) -> List[str]:

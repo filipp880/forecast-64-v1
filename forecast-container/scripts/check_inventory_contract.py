@@ -1,35 +1,46 @@
-"""Проверка инженерной совместимости window против legacy; не подбор по score."""
+#!/usr/bin/env python3
+"""Verify signed, summed daily stock against the panel used by weekly inference."""
 from __future__ import annotations
-import sys, json, argparse, time
-from pathlib import Path
-import numpy as np, pandas as pd
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from app.features import build_panel, make_features, KEY
-from app.predictor import Predictor
-from app.calibration import predict_calibrated
-from verified_backtest import metrics
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--out', type=Path, default=Path(__file__).resolve().parents[2] / 'artifacts/verified')
-    ap.add_argument('--origin', required=True)
-    a = ap.parse_args()
-    cut = pd.Timestamp(a.origin)
-    root = Path(__file__).resolve().parents[2]
-    s = pd.read_csv(root / 'data/sales_dataset_hakaton_train.csv', parse_dates=['date'])
-    t = pd.read_csv(root / 'data/stock_dataset_hakaton_train.csv', parse_dates=['date'])
-    daily = s.groupby(['date', *KEY], as_index=False).quantity.sum()
-    panel = build_panel(s[s.date <= cut], t[t.date <= cut])
-    m = Predictor(a.out / a.origin).load().model
-    old = make_features(panel, cut, range(1, 65), stock_policy='legacy')
-    new = make_features(panel, cut, range(1, 65), stock_policy='window')
-    assert old[['date', *KEY]].equals(new[['date', *KEY]])
-    p1 = np.rint(m.predict(old))
-    p2 = np.rint(m.predict(new))
-    truth = new[['date', *KEY]].merge(daily, on=['date', *KEY], how='left', validate='one_to_one').quantity.fillna(0.0).to_numpy(float)
-    ids = pd.MultiIndex.from_frame(new[KEY]).to_numpy()
-    r = {'origin': a.origin, 'equal_predictions': bool(np.array_equal(p1, p2)), 'changed_rows': int((p1 != p2).sum()), 'legacy': metrics(truth, p1, ids), 'window': metrics(truth, p2, ids), 'changed_features': {col: int((~(old[col].eq(new[col]) | old[col].isna() & new[col].isna())).sum()) for col in ['stock_last', 'stock_mean_28', 'stock_zero_share_90', 'days_of_cover']}}
-    (a.out / a.origin / 'inventory_contract.json').write_text(json.dumps(r, indent=2), encoding='utf-8')
-    print(json.dumps(r, indent=2))
-if __name__ == '__main__':
-    main()
+import argparse
+import json
+import sys
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from app.features import KEY, build_panel, truncate_history
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="Verify daily sum and reservation preservation")
+    ap.add_argument("--sales", default="../data/sales_dataset_hakaton_train.csv")
+    ap.add_argument("--stock", default="../data/stock_dataset_hakaton_train.csv")
+    ap.add_argument("--origin", default="2026-07-26")
+    ap.add_argument("--out", type=Path, default=Path("../artifacts/weekly/inventory_contract.json"))
+    args = ap.parse_args(argv)
+    if pd.Timestamp(args.origin) > pd.Timestamp("2026-07-26"):
+        ap.error("Competition inventory cutoff cannot exceed 2026-07-26")
+    sales, stock = truncate_history(pd.read_csv(args.sales, parse_dates=["date"]), pd.read_csv(args.stock, parse_dates=["date"]), args.origin)
+    if "article" not in stock and "char_article" in stock:
+        stock = stock.rename(columns={"char_article": "article"})
+    panel = build_panel(sales, stock)
+    expected = stock.groupby(["date", *KEY], as_index=False).stock.sum()
+    compared = panel[["date", *KEY, "stock"]].merge(expected, on=["date", *KEY], how="inner", suffixes=("_panel", "_expected"), validate="one_to_one")
+    if compared.empty or not np.allclose(compared.stock_panel, compared.stock_expected, equal_nan=True):
+        raise AssertionError("Daily stock is not the signed sum of original records")
+    record = {"origin": args.origin, "stock_aggregation": "sum", "negative_stock_policy": "preserve",
+              "raw_stock_rows": len(stock), "negative_raw_rows": int((stock.stock < 0).sum()),
+              "negative_aggregated_daily_keys": int((expected.stock < 0).sum()),
+              "duplicate_rows_aggregated": int(len(stock) - len(expected)), "compared_keys": len(compared),
+              "equal_daily_stock": True}
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(record, indent=2), encoding="utf-8")
+    print(json.dumps(record, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

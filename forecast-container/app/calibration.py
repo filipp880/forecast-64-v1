@@ -25,7 +25,7 @@ def combine(probability, magnitude, lgbm_raw, mean28, n_sale_days, spec=None):
     raw = raw * float(spec.get('scale', 1.0)) * np.where(n_sale_days >= 45, float(spec.get('regular_scale', 1.0)), 1.0)
     if not np.isfinite(raw).all():
         raise ValueError('Некорректный результат ансамбля')
-    if spec.get('round_int', True):
+    if spec.get('round_int', False):
         threshold = float(spec.get('round_threshold', 0.5))
         return np.rint(np.maximum(raw, 0.0)) if threshold == 0.5 else np.floor(np.maximum(raw, 0.0) + 1 - threshold)
     return np.maximum(raw, 0.0)
@@ -36,5 +36,23 @@ def predict_calibrated(model, features, spec):
     x = model.hurdle._encode(features, False)
     p = model.hurdle.classifier.predict(x, num_iteration=model.hurdle._best_iterations['classifier'], num_threads=int(model.params.get('threads', 8)))
     m = model.hurdle.regressor.predict(x, num_iteration=model.hurdle._best_iterations['regressor'], num_threads=int(model.params.get('threads', 8)))
-    lg = np.expm1(model.lgbm.predict(features))
-    return combine(p, m, lg, features.mean_28.to_numpy(float), features.n_sale_days_90.to_numpy(float), spec)
+    from .models import inverse_target
+    lg = inverse_target(model.lgbm.predict(features), model.lgbm.target_transform)
+    return combine(p, m, lg, 7 * features.mean_28.to_numpy(float), features.n_sale_days_90.to_numpy(float), spec)
+
+
+def forecast_quantities(model, features, zero_threshold=0.0, round_int=False, calibration=None):
+    """One serving/evaluation path, including the explicit no-history fallback."""
+    from .models import inverse_target, postprocess_forecast
+    if calibration:
+        predictions = predict_calibrated(model, features, calibration)
+    else:
+        predictions = postprocess_forecast(inverse_target(model.predict(features), model.target_transform),
+                                           zero_threshold, round_int)
+    if "no_history" in features:
+        fallback = postprocess_forecast(features.mean_week_4.to_numpy(float), zero_threshold,
+                                       bool(calibration.get("round_int", False)) if calibration else round_int)
+        predictions = np.where(features.no_history.to_numpy() > 0, fallback, predictions)
+    if not np.isfinite(predictions).all() or (predictions < 0).any():
+        raise ValueError("Model returned nonfinite or negative quantity")
+    return predictions

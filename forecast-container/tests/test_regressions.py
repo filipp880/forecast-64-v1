@@ -1,223 +1,431 @@
-import sys, os, json, pickle, shutil
+"""Weekly pipeline regressions using synthetic histories and fresh artifacts."""
+from __future__ import annotations
+
+import hashlib
+import io
+import json
+import pickle
+import shutil
+import sys
 from pathlib import Path
-import numpy as np, pandas as pd, pytest
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / 'forecast-container'))
-os.environ['MODEL_DIR'] = str(ROOT / 'forecast-container/model')
+
+import numpy as np
+import pandas as pd
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from app.features import (
+    CAT_FEATURES, FEATURE_COLUMNS, KEY, build_panel, make_features,
+    make_training_frame, monetary_weekly_features, next_week_start,
+    preprocessing_spec, truncate_history,
+)
+from app.models import get_model_class, inverse_target, transform_target
+from app.predictor import ForecastNotReadyError, ModelNotReadyError, Predictor
+from app.temporal import research_split
 from app.validators import validate_sales_csv, validate_stock_csv
-from app.metrics import compute_all_metrics
-from app.predictor import Predictor, ModelNotReadyError
+
+
+def make_inputs(n=180, start="2025-01-01"):
+    dates = pd.date_range(start, periods=n)
+    sales = pd.DataFrame({c: "x" for c in ["composite_division", "cities_name", *CAT_FEATURES]}, index=range(n))
+    sales["date"] = dates.strftime("%Y-%m-%d")
+    sales["quantity"] = 1.0
+    sales["sales_sum"] = 1.0
+    sales["discount_sum"] = np.nan
+    stock = pd.DataFrame({"date": sales.date, "warehouse_name": "x", "article": "x", "stock": 3.0})
+    return sales, stock
+
 
 @pytest.fixture
 def inputs():
-    n = 180
-    dates = pd.date_range('2025-01-01', periods=n).strftime('%Y-%m-%d')
-    s = pd.DataFrame({c: ['x'] * n for c in ['composite_division', 'cities_name', 'warehouse_name', 'category_lvl_1', 'category_lvl_2', 'category_lvl_3', 'article', 'characteristic']})
-    s['date'] = dates
-    s['quantity'] = 1.0
-    s['sales_sum'] = 1.0
-    s['discount_sum'] = 0.0
-    t = pd.DataFrame({'date': dates, 'warehouse_name': 'x', 'article': 'x', 'stock': 1.0})
-    return (s, t)
+    return make_inputs()
 
-@pytest.mark.parametrize('value', ['abc', np.nan, np.inf, -np.inf])
+
+class FakeWeeklyModel:
+    target_transform = "none"
+
+    def predict(self, features):
+        # Transparent output makes date/aggregation/cutoff mistakes observable.
+        return features.mean_week_4.to_numpy(dtype=float)
+
+
+@pytest.fixture
+def predictor(tmp_path):
+    instance = Predictor(tmp_path)
+    instance.model = FakeWeeklyModel()
+    instance.config = {
+        **preprocessing_spec(), "target_transform": "none",
+        "training_data_end": "2024-12-31", "selection_data_end": "2024-12-31",
+        "postprocess": {"zero_threshold": 0.0, "round_int": False},
+    }
+    return instance
+
+
+@pytest.mark.parametrize("value", ["bad", np.nan, np.inf, -np.inf, -1])
 def test_bad_quantity_rejected(inputs, value):
-    (s, t) = inputs
-    s['quantity'] = s['quantity'].astype(object)
-    s.loc[0, 'quantity'] = value
-    assert validate_sales_csv(s)
+    sales, _ = inputs
+    sales["quantity"] = sales.quantity.astype(object)
+    sales.loc[0, "quantity"] = value
+    assert validate_sales_csv(sales)
 
-@pytest.mark.parametrize('column', ['date', 'warehouse_name', 'article'])
-def test_empty_key_rejected(inputs, column):
-    (s, t) = inputs
-    s.loc[0, column] = None
-    assert validate_sales_csv(s)
 
-def test_negative_stock_allowed(inputs):
-    (s, t) = inputs
-    t.loc[0, 'stock'] = -2
-    assert validate_stock_csv(t) == []
+@pytest.mark.parametrize("column", ["date", "warehouse_name", "article"])
+def test_empty_sales_key_rejected(inputs, column):
+    sales, _ = inputs
+    sales.loc[0, column] = None
+    assert validate_sales_csv(sales)
 
-def test_exact_180_and_179(inputs):
-    (s, t) = inputs
-    assert not validate_sales_csv(s)
-    assert validate_sales_csv(s.iloc[1:])
 
-def test_numeric_stock_rejected(inputs):
-    (s, t) = inputs
-    t['stock'] = t['stock'].astype(object)
-    t.loc[0, 'stock'] = 'broken'
-    assert validate_stock_csv(t)
+def test_null_discount_and_missing_old_optional_fields_are_accepted(inputs):
+    sales, _ = inputs
+    assert sales.discount_sum.isna().all()
+    assert "cost_price" not in sales and "volume_weight" not in sales
+    assert validate_sales_csv(sales) == []
 
-def test_duplicate_metric_keys_rejected():
-    t = pd.DataFrame({'date': ['2025-01-01'] * 2, 'warehouse_name': 'w', 'article': 'a', 'quantity': 1.0})
-    with pytest.raises(ValueError):
-        compute_all_metrics(t, t)
 
-def test_origin_alignment():
-    t = pd.DataFrame({'origin': ['2024-12-01', '2024-12-02', '2024-12-02'], 'date': ['2025-01-01', '2025-01-01', '2025-01-02'], 'warehouse_name': 'w', 'article': 'a', 'quantity': 1.0})
-    p = t.copy()
-    p.quantity = [1.0, 1.0, 0.0]
-    assert compute_all_metrics(t, p)['wape'] == pytest.approx(100 / 3)
+def test_exact_history_boundary_and_sparse_dates(inputs):
+    sales, stock = inputs
+    assert not validate_sales_csv(sales)
+    assert not validate_stock_csv(stock)
+    assert validate_sales_csv(sales.iloc[1:])
+    assert validate_stock_csv(stock.iloc[1:])
+    assert not validate_sales_csv(sales.iloc[[0, -1]])
 
-def test_atomic_load(tmp_path):
-    src = ROOT / 'forecast-container/model'
-    for f in src.iterdir():
-        shutil.copyfile(f, tmp_path / f.name)
-    path = tmp_path / 'preprocessor.pkl'
-    spec = pickle.loads(path.read_bytes())
-    spec['horizon'] = 65
-    path.write_bytes(pickle.dumps(spec))
-    p = Predictor(tmp_path)
-    with pytest.raises(ModelNotReadyError):
-        p.load()
-    assert not p.is_loaded
-    assert p.config == {}
 
-def test_research_targets_disjoint():
-    from app.temporal import research_split
-    (train, valid) = research_split([pd.Timestamp('2025-10-18')], 64, 28, 7)
-    assert max(train) + pd.Timedelta(days=64) <= valid
-    assert valid + pd.Timedelta(days=64) <= pd.Timestamp('2025-10-18')
+@pytest.mark.parametrize("value", ["bad", np.nan, np.inf, -np.inf])
+def test_bad_stock_rejected(inputs, value):
+    _, stock = inputs
+    stock["stock"] = stock.stock.astype(object)
+    stock.loc[0, "stock"] = value
+    assert validate_stock_csv(stock)
 
-def test_zero_zero_stays_in_smape():
-    from app.metrics import smape_series
-    assert smape_series(np.array([0.0, 1.0]), np.array([0.0, 0.0])) == 100.0
 
-def test_stock_window_has_no_stale_carry(inputs):
-    from app.features import build_panel, make_features
-    (s, t) = inputs
-    s = pd.concat([s, s.iloc[:20]], ignore_index=True)
-    s['date'] = pd.date_range('2025-01-01', periods=200)
-    t = t.iloc[:1].copy()
-    t['stock'] = 7.0
-    cut = s.date.max()
-    full = make_features(build_panel(s, t), cut, [1])
-    recent = make_features(build_panel(s.iloc[-180:], t.iloc[0:0]), cut, [1])
-    assert np.isnan(full.stock_last.iloc[0]) and np.isnan(recent.stock_last.iloc[0])
-    legacy = make_features(build_panel(s, t), cut, [1], stock_policy='legacy')
-    assert legacy.stock_last.iloc[0] == 7
+def test_stock_alias_supported_and_conflicts_rejected(inputs):
+    _, stock = inputs
+    assert not validate_stock_csv(stock.rename(columns={"article": "char_article"}))
+    stock["char_article"] = "different"
+    assert validate_stock_csv(stock)
 
-def test_future_values_do_not_change_features(inputs):
-    from app.features import build_panel, make_features
-    (s, t) = inputs
-    cut = pd.Timestamp(s.date.iloc[-5])
-    before = make_features(build_panel(s, t), cut, [1, 2])
-    s.loc[pd.to_datetime(s.date) > cut, 'quantity'] = 999
-    t.loc[pd.to_datetime(t.date) > cut, 'stock'] = 999
-    pd.testing.assert_frame_equal(before, make_features(build_panel(s, t), cut, [1, 2]))
 
-def test_submission_wrong_start_and_duplicates(inputs):
-    from app.submission import validate_forecast
-    (s, t) = inputs
-    dates = pd.date_range(pd.to_datetime(s.date).max() + pd.Timedelta(days=1), periods=64).strftime('%Y-%m-%d')
-    f = pd.DataFrame({'date': dates, 'warehouse_name': 'x', 'article': 'x', 'quantity': 0.0})
-    assert validate_forecast(f, s)['rows'] == 64
-    with pytest.raises(ValueError):
-        validate_forecast(pd.concat([f, f.iloc[:1]]), s)
-    f.loc[0, 'date'] = '2000-01-01'
-    with pytest.raises(ValueError):
-        validate_forecast(f, s)
+def test_signed_stock_duplicates_are_summed_before_features(inputs):
+    sales, stock = inputs
+    stock.loc[0, "stock"] = -4.0
+    stock.loc[1, "stock"] = 5.0
+    duplicate = stock.iloc[[1]].copy()
+    duplicate["stock"] = -2.0
+    stock = pd.concat([stock, duplicate], ignore_index=True)
+    assert validate_stock_csv(stock) == []
+    panel = build_panel(sales, stock)
+    assert panel.loc[panel.date == pd.Timestamp(sales.date.iloc[0]), "stock"].iloc[0] == -4.0
+    assert panel.loc[panel.date == pd.Timestamp(sales.date.iloc[1]), "stock"].iloc[0] == 3.0
+    assert panel.quantity.sum() == 180.0  # reservations do not invalidate sales
+    cut = pd.Timestamp(sales.date.iloc[0])
+    features = make_features(panel, cut, [1])
+    assert features.stock_last.iloc[0] == -4
+    assert features.stock_reserved.iloc[0] == 4
+    assert features.days_of_cover.iloc[0] == 0
 
-def test_api_errors_history_and_filters(inputs):
-    import app.main as main
-    from fastapi.testclient import TestClient
-    c = TestClient(main.app)
-    (s, t) = inputs
 
-    def post(a, b):
-        return c.post('/predict', files={'sales': ('s.csv', a.to_csv(index=False).encode()), 'stock': ('t.csv', b.to_csv(index=False).encode())})
-    assert c.post('/predict').json()['code'] == 'VALIDATION_ERROR'
-    s_bad = s.copy()
-    s_bad['quantity'] = 'broken'
-    assert post(s_bad, t).status_code == 422
-    assert post(s.iloc[1:], t).status_code == 422
-    t['stock'] = -2
-    r = post(s, t)
-    assert r.status_code == 200
-    import io
-    f = pd.read_csv(io.BytesIO(r.content))
-    assert len(f) == 64
-    for u in ['/predict?article=x', '/predict?warehouse=x', '/predict?article=x&warehouse=x', '/predict/all']:
-        rr = c.get(u)
-        assert rr.status_code == 200
-        pd.testing.assert_frame_equal(pd.read_csv(io.BytesIO(rr.content)), f)
-    assert len(c.get('/predict/all?format=json').json()) == 64
-    assert c.get('/predict').status_code == 400
-    assert c.get('/predict/all?format=invalid').status_code == 400
+def test_department_and_city_sales_aggregate_to_pair_day(inputs):
+    sales, stock = inputs
+    extra = sales.iloc[:1].copy()
+    extra["composite_division"] = "another_department"
+    extra["cities_name"] = "another_city"
+    extra["quantity"] = 2.5
+    panel = build_panel(pd.concat([sales, extra], ignore_index=True), stock)
+    assert panel.loc[panel.date == pd.Timestamp(sales.date.iloc[0]), "quantity"].iloc[0] == 3.5
 
-def test_metrics_string_and_datetime_keys():
-    t = pd.DataFrame({'date': [pd.Timestamp('2025-01-01')], 'warehouse_name': 'w', 'article': 'a', 'quantity': 1.0})
-    p = t.copy()
-    p.date = ['2025-01-01']
-    assert compute_all_metrics(t, p)['rmse'] == 0
 
-def test_no_fake_training_targets(inputs):
-    from app.features import build_panel, make_training_frame
-    (s, t) = inputs
-    panel = build_panel(s, t)
-    with pytest.raises(ValueError):
-        make_training_frame(panel, panel.date.max(), [1])
+@pytest.mark.parametrize("weekday", range(7))
+def test_api_next_monday_for_every_last_weekday(predictor, weekday):
+    last_date = pd.Timestamp("2026-07-27") + pd.Timedelta(days=weekday)
+    sales, stock = make_inputs(start=last_date - pd.Timedelta(days=179))
+    result = predictor.predict(sales, stock)
+    expected_start = pd.Timestamp("2026-08-03")
+    assert next_week_start(last_date) == expected_start
+    assert list(result.columns) == ["week", *KEY, "quantity"]
+    assert len(result) == 9
+    assert result.week.tolist() == pd.date_range(expected_start, periods=9, freq="7D").strftime("%Y-%m-%d").tolist()
+    assert result.quantity.tolist() == [7.0] * 9
 
-def test_baseline_origin_and_rounded(inputs):
-    from app.features import build_panel
-    from baseline import baseline_forecast, truth_for
-    (s, t) = inputs
-    panel = build_panel(s, t)
-    cut = panel.date.max() - pd.Timedelta(days=64)
-    truth = truth_for(panel, cut, 64)
-    truth['origin'] = str(cut.date())
-    for method in ['zero', 'mean28_round', 'mean90_round', 'dow_round']:
-        pred = baseline_forecast(panel, cut, method, 64, s[['warehouse_name', 'article']].drop_duplicates())
-        pred['origin'] = str(cut.date())
-        assert np.isfinite(compute_all_metrics(truth, pred)['smape'])
 
-def test_calibration_incumbent_parity():
-    from app.calibration import combine
-    p = np.array([0.2, 0.5, 0.8])
-    m = np.array([2.0, 3.0, 4.0])
-    lg = np.array([0.2, 0.8, 2.0])
-    mean = np.ones(3)
-    freq = np.array([2, 20, 60])
-    np.testing.assert_array_equal(combine(p, m, lg, mean, freq), np.rint(0.3 * np.where(p >= 0.5, m, 0) + 0.7 * lg))
+def test_competition_cutoff_excludes_both_sources_and_future_attributes(predictor):
+    sales, stock = make_inputs(n=210, start="2026-01-03")
+    before = predictor.predict(sales, stock, history_cutoff="2026-07-26", first_week="2026-07-27")
+    future_sales = sales.iloc[:1].copy()
+    future_sales["date"] = "2026-07-31"
+    future_sales["quantity"] = 10_000
+    future_sales["category_lvl_1"] = "future_category"
+    future_stock = stock.iloc[:1].copy()
+    future_stock["date"] = "2026-07-31"
+    future_stock["stock"] = -10_000
+    future_pair = future_sales.copy()
+    future_pair["article"] = "future_article"
+    after = predictor.predict(
+        pd.concat([sales, future_sales, future_pair], ignore_index=True),
+        pd.concat([stock, future_stock], ignore_index=True),
+        history_cutoff="2026-07-26", first_week="2026-07-27",
+    )
+    pd.testing.assert_frame_equal(before, after)
+    assert after.week.iloc[0] == "2026-07-27"
+    assert set(after.article) == {"x"}
 
-def test_future_catalog_not_in_strict_snapshot(inputs):
-    from app.features import build_panel, make_features
-    (s, t) = inputs
-    s.loc[s.index[-1], 'article'] = 'future_product'
-    cut = pd.to_datetime(s.date.iloc[-2])
-    panel = build_panel(s, t)
-    assert 'future_product' not in set(make_features(panel, cut, [1]).article)
-    assert 'future_product' in set(make_features(panel, cut, [1], stock_policy='legacy').article)
 
-def test_direct_prediction_without_python_network(inputs, monkeypatch):
+def test_explicit_cutoff_extends_sparse_history_to_origin(predictor):
+    sales, stock = make_inputs(n=180, start="2026-01-01")
+    # Last recorded sale is 29 June; remaining calendar days to origin are zeros.
+    result = predictor.predict(sales, stock, history_cutoff="2026-07-26", first_week="2026-07-27")
+    assert result.week.iloc[0] == "2026-07-27"
+    assert result.quantity.iloc[0] == pytest.approx(0.25)
+
+
+def test_late_model_provenance_is_rejected_for_competition(predictor, inputs):
+    predictor.config["training_data_end"] = "2026-07-31"
+    with pytest.raises(ValueError, match="training_data_end"):
+        predictor.predict(*inputs, history_cutoff="2026-07-26", first_week="2026-07-27")
+    predictor.config["training_data_end"] = "2026-07-26"
+    predictor.config["selection_data_end"] = "2026-07-31"
+    with pytest.raises(ValueError, match="selection_data_end"):
+        predictor.predict(*inputs, history_cutoff="2026-07-26", first_week="2026-07-27")
+
+
+def test_weekly_target_is_seven_day_sum_and_partial_week_is_rejected():
+    sales, stock = make_inputs(n=300)
+    dates = pd.to_datetime(sales.date)
+    sales["quantity"] = dates.dt.weekday + 1.0
+    panel = build_panel(sales, stock)
+    frame = make_training_frame(panel, pd.Timestamp("2025-07-20"), [1, 2, 9])
+    assert frame.week.tolist() == list(pd.to_datetime(["2025-07-21", "2025-07-28", "2025-09-15"]))
+    assert frame.target.tolist() == [28.0] * 3
+    with pytest.raises(ValueError, match="полных"):
+        make_training_frame(panel.loc[panel.date < "2025-09-21"], pd.Timestamp("2025-07-20"), [9])
+
+
+def test_future_sales_stock_attributes_and_catalog_do_not_change_snapshot(inputs):
+    sales, stock = inputs
+    cut = pd.Timestamp(sales.date.iloc[-5])
+    before = make_features(build_panel(sales, stock), cut)
+    future = pd.to_datetime(sales.date) > cut
+    sales.loc[future, "quantity"] = 999
+    sales.loc[future, "category_lvl_1"] = "future_category"
+    sales.loc[future, "article"] = "future_product"
+    stock.loc[pd.to_datetime(stock.date) > cut, "stock"] = -999
+    after = make_features(build_panel(sales, stock), cut)
+    pd.testing.assert_frame_equal(before, after)
+    assert "future_product" not in set(after.article)
+
+
+def test_old_inventory_is_not_carried_into_missing_api_window():
+    sales, stock = make_inputs(n=220)
+    cut = pd.Timestamp(sales.date.iloc[-1])
+    stock = stock.iloc[:1].copy()
+    full = make_features(build_panel(sales, stock), cut, [1])
+    recent = make_features(build_panel(sales.iloc[-180:], stock.iloc[:0]), cut, [1])
+    assert np.isnan(full.stock_last.iloc[0])
+    assert np.isnan(recent.stock_last.iloc[0])
+
+
+def test_all_available_history_affects_long_context_only():
+    sales, stock = make_inputs(n=400)
+    sales.loc[:219, "quantity"] = 10
+    cut = pd.Timestamp(sales.date.iloc[-1])
+    full = make_features(build_panel(sales, stock), cut, [1])
+    recent = make_features(build_panel(sales.iloc[-180:], stock.iloc[-180:]), cut, [1])
+    assert full.mean_all.iloc[0] == pytest.approx(5.95)
+    assert recent.mean_all.iloc[0] == 1
+    assert full.mean_28.iloc[0] == recent.mean_28.iloc[0] == 1
+
+
+def test_required_pair_without_history_gets_explicit_fallback(predictor, inputs):
+    sales, stock = inputs
+    pairs = pd.DataFrame({"warehouse_name": ["x", "new_warehouse"], "article": ["x", "x"]})
+    features = make_features(build_panel(sales, stock), pd.Timestamp(sales.date.iloc[-1]), required_pairs=pairs)
+    missing = features.loc[features.warehouse_name == "new_warehouse"]
+    assert len(missing) == 9
+    assert missing.no_history.eq(1).all()
+    assert missing.mean_week_4.eq(7).all()
+    result = predictor.predict(sales, stock, required_pairs=pairs)
+    assert len(result) == 18
+    assert result.loc[result.warehouse_name == "new_warehouse", "quantity"].eq(7).all()
+
+
+def test_evaluation_and_api_share_no_history_fallback(predictor, inputs):
+    from train import predictions_for
+
+    class ConstantModel:
+        target_transform = "none"
+
+        def predict(self, features):
+            return np.full(len(features), 123.0)
+
+    predictor.model = ConstantModel()
+    sales, stock = inputs
+    pairs = pd.DataFrame({"warehouse_name": ["x", "new_warehouse"], "article": ["x", "x"]})
+    features = make_features(build_panel(sales, stock), pd.Timestamp(sales.date.iloc[-1]), required_pairs=pairs)
+    evaluated = features[["week", *KEY]].copy()
+    evaluated["quantity"] = predictions_for(predictor.model, features)
+    evaluated["week"] = evaluated.week.dt.strftime("%Y-%m-%d")
+    evaluated = evaluated.sort_values(["week", *KEY]).reset_index(drop=True)
+    served = predictor.predict(sales, stock, required_pairs=pairs)
+    pd.testing.assert_frame_equal(evaluated, served)
+    assert served.loc[served.warehouse_name == "x", "quantity"].eq(123).all()
+    assert served.loc[served.warehouse_name == "new_warehouse", "quantity"].eq(7).all()
+
+
+def test_money_is_exponentiated_before_weekly_sum_with_null_discount():
+    sales, _ = make_inputs(n=3, start="2026-07-27")
+    sales["sales_sum"] = np.log([2.0, 3.0, 5.0])
+    sales["discount_sum"] = [np.nan, np.log(4.0), 0.0]
+    result = monetary_weekly_features(sales)
+    assert result.sales_sum.iloc[0] == pytest.approx(10.0)
+    assert result.discount_sum.iloc[0] == pytest.approx(5.0)  # null=0, logged numeric zero=1
+    assert sales.discount_sum.isna().iloc[0]
+
+
+def test_research_targets_do_not_cross_selection_or_test():
+    train, valid = research_split([pd.Timestamp("2026-05-24")], horizon=9, step=28, n_train=4)
+    assert max(train) + pd.Timedelta(weeks=9) <= valid
+    assert valid + pd.Timedelta(weeks=9) <= pd.Timestamp("2026-05-24")
+    assert all(origin.weekday() == 6 for origin in [*train, valid])
+
+
+def test_inference_is_deterministic_offline_and_cache_is_defensive(predictor, inputs, monkeypatch):
     import socket
 
     def denied(*args, **kwargs):
-        raise AssertionError('Сетевое обращение при инференсе')
-    monkeypatch.setattr(socket, 'create_connection', denied)
-    monkeypatch.setattr(socket.socket, 'connect', denied)
-    p = Predictor(ROOT / 'forecast-container/model').load()
-    (s, t) = inputs
-    assert len(p.predict(s, t)) == 64
+        raise AssertionError("Network access during inference")
 
-def test_failed_reload_clears_prior_cache(tmp_path, inputs):
-    src = ROOT / 'forecast-container/model'
-    for f in src.iterdir():
-        if f.is_file():
-            shutil.copyfile(f, tmp_path / f.name)
-    p = Predictor(tmp_path).load()
-    (s, t) = inputs
-    p.predict(s, t)
-    (tmp_path / 'model.pkl').write_bytes(b'invalid')
-    with pytest.raises(ModelNotReadyError):
-        p.load()
-    assert not p.is_loaded and p._cached_forecast is None
+    monkeypatch.setattr(socket, "create_connection", denied)
+    monkeypatch.setattr(socket.socket, "connect", denied)
+    first = predictor.predict(*inputs)
+    second = predictor.predict(*inputs)
+    pd.testing.assert_frame_equal(first, second)
+    cache = predictor.get_cached_forecast()
+    cache.loc[0, "quantity"] = -1
+    assert predictor.get_cached_forecast().quantity.ge(0).all()
 
-def test_registry_is_fixed_before_validation(tmp_path):
-    sys.path.insert(0, str(ROOT / 'forecast-container/scripts'))
-    from select_candidate import initialize_grid
-    initialize_grid(tmp_path)
-    saved = (tmp_path / 'candidate_grid.json').read_bytes()
-    initialize_grid(tmp_path)
-    assert (tmp_path / 'candidate_grid.json').read_bytes() == saved
+
+def test_api_weekly_post_get_json_errors_and_cache(predictor, inputs, monkeypatch):
+    import app.main as main
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setattr(main, "predictor", predictor)
+    client = TestClient(main.app)
+    assert client.get("/health").json()["model_loaded"]
+    assert client.get("/predict/all").status_code == 400
+    assert client.get("/predict").status_code == 400
+    assert client.post("/predict").status_code == 422
+    sales, stock = inputs
+
+    def post(a, b):
+        return client.post("/predict", files={"sales": ("sales.csv", a.to_csv(index=False).encode()), "stock": ("stock.csv", b.to_csv(index=False).encode())})
+
+    empty = client.post("/predict", files={"sales": ("empty.csv", b""), "stock": ("stock.csv", b"")})
+    assert empty.status_code == 400
+    assert empty.json()["code"] == "VALIDATION_ERROR"
+    assert post(sales.iloc[1:], stock).status_code == 422
+    bad = sales.copy()
+    bad["quantity"] = "broken"
+    assert post(bad, stock).status_code == 422
+    stock["stock"] = -2
+    response = post(sales, stock)
+    assert response.status_code == 200
+    forecast = pd.read_csv(io.BytesIO(response.content))
+    assert len(forecast) == 9
+    assert forecast.columns.tolist() == ["week", *KEY, "quantity"]
+    for url in ["/predict?article=x", "/predict?warehouse=x", "/predict?article=x&warehouse=x", "/predict/all"]:
+        result = client.get(url)
+        assert result.status_code == 200
+        pd.testing.assert_frame_equal(pd.read_csv(io.BytesIO(result.content)), forecast)
+    pd.testing.assert_frame_equal(pd.DataFrame(client.get("/predict/all?format=json").json()), forecast)
+    assert pd.read_csv(io.BytesIO(client.get("/predict?article=unknown").content)).empty
+    assert client.get("/predict/all?format=invalid").status_code == 400
+    # Failed validation must not destroy the last successful forecast.
+    post(bad, stock)
+    pd.testing.assert_frame_equal(pd.read_csv(io.BytesIO(client.get("/predict/all").content)), forecast)
+
+
+@pytest.fixture(scope="module")
+def artifact(tmp_path_factory):
+    from train import save_artifact
+
+    path = tmp_path_factory.mktemp("fresh_weekly_model")
+    sales, stock = make_inputs(n=300, start="2024-01-01")
+    sales["quantity"] = np.arange(len(sales)) % 4
+    panel = build_panel(sales, stock)
+    frame = make_training_frame(panel, pd.Timestamp("2024-07-07"))
+    model = get_model_class("lgbm")({"n_estimators": 8, "min_child_samples": 2, "num_leaves": 7, "threads": 1, "seed": 42, "log_period": 0})
+    model.fit(frame, transform_target(frame.target.to_numpy(float), model.target_transform))
+    config = save_artifact(model, path, "2024-09-08", "2024-09-08", len(frame), 1)
+    return path, model, frame, config
+
+
+def test_fresh_model_serialization_preserves_predictions(artifact):
+    path, model, frame, _ = artifact
+    loaded = Predictor(path).load()
+    np.testing.assert_allclose(loaded.model.predict(frame), model.predict(frame), rtol=0, atol=0)
+
+
+def test_old_daily_artifact_is_rejected_before_loading_model(tmp_path):
+    (tmp_path / "config.json").write_text(json.dumps({"horizon": 64, "model_type": "blend"}), encoding="utf-8")
+    predictor = Predictor(tmp_path)
+    with pytest.raises(ModelNotReadyError, match="granularity"):
+        predictor.load()
+    assert not predictor.is_loaded and predictor.config == {}
+
+
+def test_semantically_incompatible_preprocessor_rejected_even_with_valid_hash(artifact, tmp_path):
+    path, _, _, _ = artifact
+    shutil.copytree(path, tmp_path, dirs_exist_ok=True)
+    spec_path = tmp_path / "preprocessor.pkl"
+    spec = pickle.loads(spec_path.read_bytes())
+    spec["stock_aggregation"] = "max"
+    payload = pickle.dumps(spec)
+    spec_path.write_bytes(payload)
+    config_path = tmp_path / "config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["preprocessor_sha256"] = hashlib.sha256(payload).hexdigest()
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    with pytest.raises(ModelNotReadyError, match="препроцессора"):
+        Predictor(tmp_path).load()
+
+
+def test_failed_reload_clears_previous_model_and_cache(artifact, tmp_path, inputs):
+    path, _, _, config = artifact
+    shutil.copytree(path, tmp_path, dirs_exist_ok=True)
+    predictor = Predictor(tmp_path).load()
+    predictor.predict(*inputs)
+    (tmp_path / config["model_file"]).write_bytes(b"corrupt")
+    with pytest.raises(ModelNotReadyError, match="SHA-256"):
+        predictor.load()
+    assert not predictor.is_loaded and predictor.config == {}
+    with pytest.raises(ForecastNotReadyError):
+        predictor.get_cached_forecast()
+
+
+def test_sample_generator_supports_char_article_and_preserves_negative_stock(tmp_path):
+    import subprocess
+
+    sales, stock = make_inputs(n=184)
+    stock = stock.rename(columns={"article": "char_article"})
+    stock.loc[len(stock) - 10, "stock"] = -3
+    future = stock.iloc[-1:].copy()
+    future["date"] = "2026-12-31"
+    stock = pd.concat([stock, future], ignore_index=True)
+    sales_path, stock_path = tmp_path / "sales.csv", tmp_path / "stock.csv"
+    sales.to_csv(sales_path, index=False)
+    stock.to_csv(stock_path, index=False)
+    out = tmp_path / "samples"
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts/make_samples.py"), "--sales", str(sales_path),
+         "--stock", str(stock_path), "--out-dir", str(out), "--days", "180", "--articles", "1"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    sample = pd.read_csv(out / "sample_stock_6mo.csv")
+    assert "char_article" in sample
+    assert sample.stock.min() == -3
+    assert sample.date.max() == sales.date.max()
+    assert len(sample) == 180

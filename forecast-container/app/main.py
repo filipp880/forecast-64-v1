@@ -1,4 +1,4 @@
-"""FastAPI-приложение: прогноз продаж по складам и товарам на 64 дня (п. 10 ТЗ).
+"""FastAPI-приложение: прогноз продаж по складам и товарам на 9 недель.
 
 Эндпоинты:
     GET  /health                          — проверка живости сервиса
@@ -37,8 +37,8 @@ CSV_CHUNK_ROWS = 200_000
 
 app = FastAPI(
     title="Hackathon Forecast API",
-    description="Прогноз продаж по складам и товарам на 64 дня",
-    version="1.0.0",
+    description="Прогноз недельных сумм продаж на 9 полных недель со следующего понедельника",
+    version="2.0.0",
 )
 
 app.add_middleware(
@@ -131,7 +131,7 @@ async def predict_post(
     sales: UploadFile = File(...),
     stock: UploadFile = File(...),
 ):
-    """Принимает два CSV (sales + stock) и возвращает CSV с прогнозом на 64 дня."""
+    """Принимает sales + stock и возвращает week,warehouse_name,article,quantity на 9 недель."""
     df_sales, error = await _read_upload(sales, "sales")
     if error is not None:
         return error
@@ -178,7 +178,7 @@ async def predict_get(
 
 @app.get("/predict/all")
 async def predict_all(format: str = Query("csv", description="Формат ответа: csv или json")):
-    """Весь прогноз целиком (все пары «склад × товар» × 64 дня)."""
+    """Весь прогноз целиком (наблюдаемые входные пары × 9 недель)."""
     if format not in ("csv", "json"):
         return _error(400, "Параметр format должен быть 'csv' или 'json'")
 
