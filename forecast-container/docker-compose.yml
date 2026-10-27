@@ -1,7 +1,7 @@
 services:
   api:
     build: .
-    image: forecast-api
+    image: forecast-api-weekly
     ports:
       - "8000:8000"
     restart: unless-stopped

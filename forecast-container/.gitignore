@@ -17,6 +17,9 @@
 /logs/*
 !/logs/README.md
 !/logs/verified_summary.json
+!/logs/weekly_summary.json
+!/logs/weekly_runtime.json
+!/logs/weekly_docker.json
 
 # Выходы примеров curl, не путать с входными samples в data/.
 /forecast.csv

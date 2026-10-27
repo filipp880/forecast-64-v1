@@ -1,6 +1,13 @@
 # Локальные исходные данные, материалы организаторов и рабочие документы
 /data/
-/docs/
+/docs/*
+!/docs/README.md
+!/docs/requirements/
+!/docs/reports/
+/docs/requirements/*
+!/docs/requirements/*.md
+/docs/reports/*
+!/docs/reports/*.md
 
 # Локальное восстановление, эксперименты и сдаваемые CSV/архивы
 /artifacts/
