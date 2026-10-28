@@ -40,6 +40,9 @@ def main(argv=None):
         raise ValueError("Artifact saw facts after the evaluation origin; refit a past-only copy or explicitly pass --allow-in-sample")
     sales, stock = truncate_history(pd.read_csv(args.sales, parse_dates=["date"]), pd.read_csv(args.stock, parse_dates=["date"]), args.history_cutoff)
     panel = build_panel(sales, stock)
+    if model.name == "research":
+        from app.enhancements import add_money
+        panel = add_money(panel, sales)
     required = pd.read_csv(args.required_pairs, dtype=str) if args.required_pairs else None
     results = {}
     post = config.get("postprocess", {})
@@ -47,6 +50,9 @@ def main(argv=None):
         cut = pd.Timestamp(origin)
         pairs = pairs_at(panel, cut) if required is None else required
         f = make_features(panel, cut, range(1, HORIZON + 1), int(config.get("lookback_days", 180)), required_pairs=pairs)
+        if model.name == "research":
+            from app.enhancements import augment_features
+            f = augment_features(panel, f, cut)
         pred = f[["week", *KEY]].copy()
         pred["quantity"] = predictions_for(model, f, post.get("zero_threshold", 0.0), post.get("round_int", False), config.get("calibration"))
         truth = truth_for(panel, cut, HORIZON, pairs)

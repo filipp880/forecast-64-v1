@@ -97,6 +97,9 @@ def save_artifact(model, out_dir, training_end, selection_end, rows, cutoffs,
     model.save(model_path)
     spec = {**preprocessing_spec(stock_policy="window", lookback_days=lookback, horizon=horizon),
             "target_transform": model.target_transform}
+    if model.name == "research":
+        from app.enhancements import enhanced_spec, feature_columns
+        spec.update(schema_version=4, feature_columns=feature_columns(), enhancements=enhanced_spec())
     preprocessor = out_dir / "preprocessor.pkl"
     preprocessor.write_bytes(pickle.dumps(spec, protocol=4))
     config = {
@@ -122,6 +125,8 @@ def save_artifact(model, out_dir, training_end, selection_end, rows, cutoffs,
     }
     if calibration:
         config["calibration"] = calibration
+    if model.name == "research":
+        config.update(preprocessing_version=4,feature_columns=spec["feature_columns"],enhancements=spec["enhancements"])
     if provenance:
         config["provenance"] = provenance
     (out_dir / "config.json").write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")

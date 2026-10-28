@@ -52,6 +52,9 @@ def forecast_quantities(model, features, zero_threshold=0.0, round_int=False, ca
     if "no_history" in features:
         fallback = postprocess_forecast(features.mean_week_4.to_numpy(float), zero_threshold,
                                        bool(calibration.get("round_int", False)) if calibration else round_int)
+        if getattr(model,"name",None) == "research":
+            from .models.research_model import quantize
+            fallback = quantize(features.mean_week_4.to_numpy(float),features,model.recipe.get("post",{}))
         predictions = np.where(features.no_history.to_numpy() > 0, fallback, predictions)
     if not np.isfinite(predictions).all() or (predictions < 0).any():
         raise ValueError("Model returned nonfinite or negative quantity")

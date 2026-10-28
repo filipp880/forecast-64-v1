@@ -1,24 +1,23 @@
 {
   "rows": 78993,
   "post_seconds": [
-    36.258561289,
-    34.976822415000015
+    52.55557610599999,
+    38.86349334299999
   ],
-  "get_csv_seconds": 0.12979842400000052,
-  "get_json_seconds": 0.07662987300000168,
+  "get_csv_seconds": 0.15764906100000076,
+  "get_json_seconds": 0.06981880600000068,
   "deterministic_bytes": true,
   "csv_json_filters_parity": true,
-  "forecast_sha256": "4c7ef0ada083933d8abdd7b912c4ad746d234c7eb475204fec1b307137dd1059",
+  "forecast_sha256": "3cc852fa92cbc819ad381f9cb0173963b55fae73ed3d3d82ae6fea6a33cb8f6c",
   "runtime": "docker_linux",
   "network_isolation_verified": true,
   "network_mode": "none",
   "memory_limit_gib": 7,
   "cpus": 8,
-  "image_bytes": 305520979,
-  "build_seconds": 2.0726298999998107,
+  "image_bytes": 305235950,
+  "build_seconds": 8.93102750000071,
+  "build_skipped": false,
   "submission_parity": true,
   "peak_memory_note": "Container completed under a hard 7 GiB limit; exact peak not sampled.",
-  "build_skipped": false,
-  "build_cache_note": "The measured 2.07-second repeat build used cache. An initial fresh dependency/image build also completed successfully in this session.",
-  "initial_build_verified": true
+  "build_cache_note": "Base OS and pinned dependency layers reused cache; application and trained-model layers were rebuilt. This is not a clean dependency-download timing."
 }

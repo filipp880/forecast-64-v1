@@ -29,8 +29,20 @@ def main(argv=None):
     sys.path.insert(0, str(container))
     sys.path.insert(0, str(container / "scripts"))
     from app.predictor import Predictor
-    from verified_backtest import verify_run_integrity
-    verify_run_integrity(args.validation_dir)
+    protocol = json.loads((args.validation_dir / "protocol.json").read_text(encoding="utf-8"))
+    if protocol.get("research_version"):
+        from research_weekly import verify_protocol
+        verify_protocol(args.validation_dir)
+        if sha256(args.validation_dir / "selection.json") != (args.validation_dir / "selection.sha256").read_text().strip():
+            raise ValueError("Frozen research selection changed")
+        for fold in args.validation_dir.glob("*/complete.json"):
+            record = json.loads(fold.read_text(encoding="utf-8"))
+            for name, digest in record["files"].items():
+                if sha256(fold.parent / name) != digest:
+                    raise ValueError(f"Research fold changed: {fold.parent / name}")
+    else:
+        from verified_backtest import verify_run_integrity
+        verify_run_integrity(args.validation_dir)
     model = Predictor(container / "model").load()
     if model.config != manifest["model_config"]:
         raise ValueError("The working model does not match the generated submission manifest")
@@ -38,6 +50,13 @@ def main(argv=None):
         raise ValueError("Forecast SHA-256 differs from its manifest")
     catalogue = args.forecast.with_name("required_pairs.csv" if manifest["official_pair_coverage_verified"] else "observed_pairs.csv")
     expected_catalogue_hash = manifest["sha256"].get(str(catalogue.resolve()))
+    if not expected_catalogue_hash:
+        # Delivery manifests retain original source paths; a clone/extracted ZIP
+        # may live on another drive or OS. Require an unambiguous catalogue hash.
+        matches = {digest for name,digest in manifest["sha256"].items()
+                   if name.replace("\\", "/").rsplit("/",1)[-1] == catalogue.name}
+        if len(matches) == 1:
+            expected_catalogue_hash = matches.pop()
     if not expected_catalogue_hash or sha256(catalogue) != expected_catalogue_hash:
         raise ValueError("Pair catalogue SHA-256 differs from its manifest")
     archive = args.out or args.forecast.with_name("forecast_weekly_submission.zip")
@@ -46,12 +65,17 @@ def main(argv=None):
     paths = [root / "README.md", root / "docs/README.md"]
     paths += sorted((root / "docs/requirements").glob("*.md"))
     paths += sorted((root / "docs/reports").glob("*.md"))
+    paths += [p for p in (root / "experiments").rglob("*")
+              if p.is_file() and p.suffix in (".md", ".json", ".csv", ".py", ".sha256")]
     paths += [container / name for name in ("Dockerfile", ".dockerignore", "docker-compose.yml", "README.md",
               "requirements.txt", "requirements.lock.txt", "requirements-dev.txt", "train.py", "evaluate.py",
               "baseline.py", "score.py", "generate_submission.py")]
     paths += list((container / "app").rglob("*.py"))
     paths += [container / "scripts" / name for name in ("verified_backtest.py", "select_candidate.py",
               "make_samples.py", "check_inventory_contract.py", "check_api_weekdays.py", "check_offline.py", "package_weekly.py", "verify_runtime.py", "verify_docker.py")]
+    paths.append(container / "scripts/research_weekly.py")
+    paths.append(container / "scripts/verify_research.py")
+    paths.append(container / "scripts/promote_research.py")
     paths += list((container / "tests").glob("test_*.py")) + [container / "tests/test_api.sh"]
     paths += list((container / "data").glob("sample*.csv"))
     paths += [container / "model" / name for name in ("config.json", "preprocessor.pkl", manifest["model_config"]["model_file"])]
@@ -65,7 +89,10 @@ def main(argv=None):
                 "coverage_policy": manifest["coverage_policy"], "files": records,
                 "forecast_sha256": sha256(args.forecast), "forecast_manifest_sha256": sha256(manifest_path),
                 "excludes": ["raw training CSV", "legacy artifacts", "working directories", "credentials"]}
-    evidence = [args.validation_dir / name for name in ("protocol.json", "candidate_grid.json", "selection.json", "selection.sha256", "decision.json", "api_weekdays.json", "inventory_contract.json", "offline.json")]
+    names = ["protocol.json", "candidate_grid.json", "selection.json", "selection.sha256", "decision.json", "api_weekdays.json", "inventory_contract.json", "offline.json"]
+    if protocol.get("research_version"):
+        names += ["protocol.sha256", "final_training.json"]
+    evidence = [args.validation_dir / name for name in names]
     evidence += list(args.validation_dir.glob("*/complete.json"))
     missing = [str(p) for p in evidence if not p.is_file()]
     if missing:

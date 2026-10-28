@@ -3,16 +3,16 @@
   "rows": 78993,
   "weeks": 9,
   "post_seconds": [
-    45.462442199999714,
-    42.28798370000004
+    46.09510749999936,
+    46.56243309999991
   ],
-  "get_csv_seconds": 0.1679839999997057,
-  "get_json_seconds": 0.09288440000000264,
-  "peak_service_gib": 2.603424072265625,
+  "get_csv_seconds": 0.9739597000007052,
+  "get_json_seconds": 0.08498570000119798,
+  "peak_service_gib": 2.7511367797851562,
   "deterministic_bytes": true,
   "submission_parity": true,
   "get_csv_json_filters_parity": true,
-  "forecast_sha256": "177ed1afb2ddfab1909f2752d88fe9bc5ffc4e382712f50c1946eb3eaa47df3d",
+  "forecast_sha256": "09d4b781e1d37500a6ae36ef3e63cfeb38e92be773ce5dd85f04ae76f525c927",
   "history_cutoff": "2026-07-26",
   "network_isolation_verified": false,
   "network_note": "Native HTTP verification; Docker --network none must be verified separately.",

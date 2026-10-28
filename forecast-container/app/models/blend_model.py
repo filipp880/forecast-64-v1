@@ -62,6 +62,8 @@ class BlendForecastModel(BaseForecastModel):
             "seed": self.params.get("seed", 42),
             "threads": self.params.get("threads", 8),
         }
+        if "feature_columns" in self.params:
+            common["feature_columns"] = self.params["feature_columns"]
         self.hurdle = HurdleForecastModel({**common, **(self.params.get("hurdle") or {})})
         self.lgbm = LightGBMForecastModel({**common, **(self.params.get("lgbm") or {})})
 

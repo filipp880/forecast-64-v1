@@ -12,10 +12,11 @@ from .blend_model import BlendForecastModel
 from .catboost_model import CatBoostForecastModel
 from .hurdle_model import HurdleForecastModel
 from .lightgbm_model import LightGBMForecastModel
+from .research_model import WeeklyResearchModel
 
 MODEL_REGISTRY: dict[str, type[BaseForecastModel]] = {
     cls.name: cls
-    for cls in (LightGBMForecastModel, HurdleForecastModel, BlendForecastModel, CatBoostForecastModel)
+    for cls in (LightGBMForecastModel, HurdleForecastModel, BlendForecastModel, CatBoostForecastModel, WeeklyResearchModel)
 }
 
 

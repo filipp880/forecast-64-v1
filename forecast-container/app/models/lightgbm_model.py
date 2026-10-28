@@ -111,7 +111,7 @@ class LightGBMForecastModel(BaseForecastModel):
 
     def _encode(self, frame: pd.DataFrame, fit: bool) -> pd.DataFrame:
         """Категориальные — в pandas ``category`` с кодировкой, зафиксированной на обучении."""
-        x = frame[FEATURE_COLUMNS].copy()
+        x = frame[self.params.get("feature_columns", FEATURE_COLUMNS)].copy()
         for col in CAT_FEATURES:
             values = x[col].astype(str)
             if fit:

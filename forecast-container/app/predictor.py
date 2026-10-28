@@ -49,6 +49,9 @@ class Predictor:
                         negative_stock_policy="preserve", stock_policy="window",
                         forecast_alignment="next_calendar_monday",
                         feature_columns=FEATURE_COLUMNS, cat_features=CAT_FEATURES)
+        if self.config.get("model_type") == "research":
+            from .enhancements import enhanced_spec, feature_columns
+            required.update(preprocessing_version=4,feature_columns=feature_columns(),enhancements=enhanced_spec())
         for name, expected in required.items():
             if self.config.get(name) != expected:
                 raise ValueError(f"Несовместимый config: {name}. Требуется переобученная weekly модель")
@@ -65,6 +68,8 @@ class Predictor:
             raise ValueError("SHA-256 препроцессора не соответствует config")
         spec = pickle.loads(preprocessor)
         expected_spec = preprocessing_spec(lookback_days=int(self.config.get("lookback_days", LOOKBACK_DAYS)))
+        if model_type == "research":
+            expected_spec.update(schema_version=4,feature_columns=required["feature_columns"],enhancements=required["enhancements"])
         if any(spec.get(k) != v for k, v in expected_spec.items()):
             raise ValueError("Спецификация препроцессора не соответствует weekly коду")
         if spec.get("target_transform") != self.config.get("target_transform"):
@@ -74,6 +79,10 @@ class Predictor:
             if not self.config.get(field) or pd.isna(pd.to_datetime(self.config[field], errors="coerce")):
                 raise ValueError(f"Отсутствует дата происхождения модели: {field}")
         self.model = cls.load(model_path)
+        if model_type == "research":
+            self.model.check_schema()
+            if self.model.params != self.config["model_params"]:
+                raise ValueError("Research parameters differ from model config")
         if model_type == "lgbm":
             self.model.target_transform = self.config["target_transform"]
         if self.model.target_transform != self.config["target_transform"]:
@@ -110,8 +119,14 @@ class Predictor:
         first = pd.Timestamp(first_week) if first_week is not None else next_week_start(cutoff)
         pairs = normalized_pairs(required_pairs if required_pairs is not None else df_sales[KEY].drop_duplicates())
         panel = build_panel(df_sales, df_stock, history_end=cutoff)
+        if getattr(self.model,"name",None) == "research":
+            from .enhancements import add_money
+            panel = add_money(panel, df_sales)
         features = make_features(panel, cutoff, lookback_days=int(self.config.get("lookback_days", LOOKBACK_DAYS)),
                                  first_week=first, required_pairs=pairs)
+        if getattr(self.model,"name",None) == "research":
+            from .enhancements import augment_features
+            features = augment_features(panel, features, cutoff)
         from .calibration import forecast_quantities
         post = self.config.get("postprocess", {})
         predictions = forecast_quantities(self.model, features, float(post.get("zero_threshold", 0)),
