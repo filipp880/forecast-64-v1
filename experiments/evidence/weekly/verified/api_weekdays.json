@@ -1,0 +1,173 @@
+{
+  "evaluation_kind": "descriptive_weekday_transfer",
+  "granularity": "week",
+  "forecast_weeks": 9,
+  "history_cutoff": "2026-07-26",
+  "model_training_data_end": "2026-02-15",
+  "model_selection_data_end": "2026-02-15",
+  "model_artifact_sha256": "c071a5e50d3b650f8dce2363e230744d2a4aa8985a5b627f34cda80debbb1ed3",
+  "common_first_week": "2026-02-23",
+  "common_last_day": "2026-04-26",
+  "pair_policy": "fixed_observed_pairs_known_at_earliest_origin",
+  "pairs": 8690,
+  "truth_windows_overlap": true,
+  "calibration_used": false,
+  "refit_performed": false,
+  "selection_performed": false,
+  "promotion_performed": false,
+  "note": "All seven origins use the same nine-week truth window and pair catalogue. Errors are correlated; this descriptive check is not seven independent folds and must not select a candidate or promote an artifact.",
+  "by_origin": {
+    "2026-02-16": {
+      "weekday": "Monday",
+      "first_week": "2026-02-23",
+      "last_day": "2026-04-26",
+      "rows": 78210,
+      "pairs": 8690,
+      "history_sales_rows": 1079803,
+      "history_stock_rows": 4454815,
+      "max_input_sales_date": "2026-02-16",
+      "metrics": {
+        "smape": 137.88532503315946,
+        "wape": 53.636853220635295,
+        "rmse": 2.886812971869699,
+        "bias": 53.276857639533844,
+        "rmsle": 0.4870805790023932
+      },
+      "actual_total": 177915.0,
+      "prediction_total": 145168.06523509504,
+      "volume_bias": -18.405943717452132,
+      "seconds": 24.427
+    },
+    "2026-02-17": {
+      "weekday": "Tuesday",
+      "first_week": "2026-02-23",
+      "last_day": "2026-04-26",
+      "rows": 78210,
+      "pairs": 8690,
+      "history_sales_rows": 1081860,
+      "history_stock_rows": 4463837,
+      "max_input_sales_date": "2026-02-17",
+      "metrics": {
+        "smape": 137.875428132775,
+        "wape": 53.5900280176249,
+        "rmse": 2.8887725016631807,
+        "bias": 53.22236065571695,
+        "rmsle": 0.48677078173162736
+      },
+      "actual_total": 177915.0,
+      "prediction_total": 144910.61257850364,
+      "volume_bias": -18.550649142285003,
+      "seconds": 21.427
+    },
+    "2026-02-18": {
+      "weekday": "Wednesday",
+      "first_week": "2026-02-23",
+      "last_day": "2026-04-26",
+      "rows": 78210,
+      "pairs": 8690,
+      "history_sales_rows": 1083997,
+      "history_stock_rows": 4472860,
+      "max_input_sales_date": "2026-02-18",
+      "metrics": {
+        "smape": 137.8998371262241,
+        "wape": 53.52806679339971,
+        "rmse": 2.8755492988408653,
+        "bias": 53.18167937471366,
+        "rmsle": 0.48627307818752125
+      },
+      "actual_total": 177915.0,
+      "prediction_total": 144949.4573723928,
+      "volume_bias": -18.52881579833472,
+      "seconds": 20.619
+    },
+    "2026-02-19": {
+      "weekday": "Thursday",
+      "first_week": "2026-02-23",
+      "last_day": "2026-04-26",
+      "rows": 78210,
+      "pairs": 8690,
+      "history_sales_rows": 1085890,
+      "history_stock_rows": 4481886,
+      "max_input_sales_date": "2026-02-19",
+      "metrics": {
+        "smape": 137.90447433513268,
+        "wape": 53.631494317456074,
+        "rmse": 2.890661167337441,
+        "bias": 53.32276840732932,
+        "rmsle": 0.4864652806084042
+      },
+      "actual_total": 177915.0,
+      "prediction_total": 144519.20351179998,
+      "volume_bias": -18.770646931512246,
+      "seconds": 20.698
+    },
+    "2026-02-20": {
+      "weekday": "Friday",
+      "first_week": "2026-02-23",
+      "last_day": "2026-04-26",
+      "rows": 78210,
+      "pairs": 8690,
+      "history_sales_rows": 1087848,
+      "history_stock_rows": 4490919,
+      "max_input_sales_date": "2026-02-20",
+      "metrics": {
+        "smape": 137.88399921378615,
+        "wape": 53.59388789455167,
+        "rmse": 2.889257251247621,
+        "bias": 53.04148787260015,
+        "rmsle": 0.4857542522328243
+      },
+      "actual_total": 177915.0,
+      "prediction_total": 144378.24776005655,
+      "volume_bias": -18.849873388946104,
+      "seconds": 22.597
+    },
+    "2026-02-21": {
+      "weekday": "Saturday",
+      "first_week": "2026-02-23",
+      "last_day": "2026-04-26",
+      "rows": 78210,
+      "pairs": 8690,
+      "history_sales_rows": 1090010,
+      "history_stock_rows": 4499954,
+      "max_input_sales_date": "2026-02-21",
+      "metrics": {
+        "smape": 137.85098221326106,
+        "wape": 53.645897248084694,
+        "rmse": 2.9034260998104573,
+        "bias": 52.80963343998171,
+        "rmsle": 0.48536086904047676
+      },
+      "actual_total": 177915.0,
+      "prediction_total": 144090.8966288195,
+      "volume_bias": -19.01138373446899,
+      "seconds": 22.995
+    },
+    "2026-02-22": {
+      "weekday": "Sunday",
+      "first_week": "2026-02-23",
+      "last_day": "2026-04-26",
+      "rows": 78210,
+      "pairs": 8690,
+      "history_sales_rows": 1092027,
+      "history_stock_rows": 4508991,
+      "max_input_sales_date": "2026-02-22",
+      "metrics": {
+        "smape": 137.9014358351386,
+        "wape": 53.6842703265068,
+        "rmse": 2.910733764911865,
+        "bias": 52.593164571694444,
+        "rmsle": 0.4846856474800305
+      },
+      "actual_total": 177915.0,
+      "prediction_total": 143496.1967621516,
+      "volume_bias": -19.345644402016916,
+      "seconds": 23.171
+    }
+  },
+  "model_dir": "E:\\Dev_Cpp\\forecast-64-v1\\artifacts\\weekly-verified-20261027\\2026-02-15",
+  "input_sha256": {
+    "E:\\Dev_Cpp\\forecast-64-v1\\data\\sales_dataset_hakaton_train.csv": "34fe562dc1e0742aac1387d71ae20711e2f533fb56bbf34ce6363318e59a8e6b",
+    "E:\\Dev_Cpp\\forecast-64-v1\\data\\stock_dataset_hakaton_train.csv": "d744cac7f82fb14ec42e12818f6257c07392ea315f050355d357d3865ec8b166"
+  }
+}

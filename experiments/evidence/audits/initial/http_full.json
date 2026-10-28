@@ -1,0 +1,23 @@
+{
+  "post": {
+    "status": 200,
+    "seconds": 33.752797199998895,
+    "bytes": 28061800
+  },
+  "matches_predictor": true,
+  "get_csv": {
+    "status": 200,
+    "seconds": 0.9005146999988938,
+    "bytes": 28061800,
+    "rows": 561728,
+    "equals": true
+  },
+  "get_json": {
+    "status": 200,
+    "seconds": 0.5007310000000871,
+    "bytes": 57271620,
+    "rows": 561728,
+    "equals": true
+  },
+  "server_peak_gib": 4.178749084472656
+}

@@ -1,0 +1,29 @@
+{
+  "origin": "2026-05-28",
+  "equal_predictions": true,
+  "changed_rows": 0,
+  "legacy": {
+    "smape": 29.589036276138327,
+    "wape": 73.70513350797371,
+    "rmse": 0.9144441951907596,
+    "bias": 91.6975104383545,
+    "rmsle": 0.33252921640522337,
+    "zero_share": 0.8998835337360382,
+    "volume_bias": -47.25079277540328
+  },
+  "window": {
+    "smape": 29.589036276138327,
+    "wape": 73.70513350797371,
+    "rmse": 0.9144441951907596,
+    "bias": 91.6975104383545,
+    "rmsle": 0.33252921640522337,
+    "zero_share": 0.8998835337360382,
+    "volume_bias": -47.25079277540328
+  },
+  "changed_features": {
+    "stock_last": 0,
+    "stock_mean_28": 0,
+    "stock_zero_share_90": 0,
+    "days_of_cover": 0
+  }
+}

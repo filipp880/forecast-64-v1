@@ -7,6 +7,7 @@
 
 ## Реализация и качество
 
+- [Все сохранённые эксперименты: каталог, результаты, протоколы и идеи](../experiments/README.md).
 - [Итоги реализации недельного прогноза](reports/IMPLEMENTATION_WEEKLY_RU.md).
 - [Короткий итоговый отчёт](reports/FINAL_REPORT_RU.md).
 - [Почему дневной и недельный SMAPE различаются](reports/METRICS_COMPARISON_RU.md).

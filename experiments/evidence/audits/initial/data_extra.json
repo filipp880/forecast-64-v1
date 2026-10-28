@@ -1,0 +1,8 @@
+{
+  "stock_exact_duplicates": 427990,
+  "stock_conflicting_daily_keys": 804588,
+  "stock_distinct_pairs": 8458,
+  "pair_day_counts": {
+    "64": 8777
+  }
+}

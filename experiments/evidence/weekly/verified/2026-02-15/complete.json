@@ -1,0 +1,30 @@
+{
+  "origin": "2026-02-15",
+  "rows": 78201,
+  "pairs": 8689,
+  "evaluation_kind": "out_of_sample",
+  "iterations": {
+    "hurdle": {
+      "classifier": 62,
+      "regressor": 70
+    },
+    "lgbm": 46
+  },
+  "seconds": 117.861,
+  "peak_process_gib": 2.4043312072753906,
+  "incumbent": {
+    "smape": 138.02551374501007,
+    "wape": 53.196515190575035,
+    "rmse": 2.7424045263387877,
+    "bias": 52.41597441394602,
+    "rmsle": 0.48451202292321727,
+    "zero_share": 0.0,
+    "volume_bias": -16.535284419579142
+  },
+  "model_sha256": "c071a5e50d3b650f8dce2363e230744d2a4aa8985a5b627f34cda80debbb1ed3",
+  "predictions_sha256": "11fc86c49d5116978ca30f85ce210d45515317c8d6a8e3852ec790e2999eec2d",
+  "config_sha256": "dc8b643458d655c34da464add374dfbf5f3150cb0ec0964b9f0434c1ab851587",
+  "preprocessor_sha256": "5c7bf804a30f572e0b3d0ac585d959da94aa5ff9117ae7afd09e441acdb18b8f",
+  "protocol_sha256": "e3d28b26afa3d0e8222868489133554cee5dfce863de7bd29568a9b55f99f47c",
+  "past_only_assertions": true
+}

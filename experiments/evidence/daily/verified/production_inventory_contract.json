@@ -1,0 +1,15 @@
+{
+  "origin": "2026-07-31",
+  "equal_predictions": true,
+  "changed_rows": 0,
+  "rows": 561728,
+  "changed_features": {
+    "stock_last": 0,
+    "stock_mean_28": 0,
+    "stock_zero_share_90": 0,
+    "days_of_cover": 0
+  },
+  "legacy_total": 154570.0,
+  "window_total": 154570.0,
+  "seconds": 46.604582399999344
+}

@@ -1,0 +1,172 @@
+{
+  "rows": 78993,
+  "pairs": 8777,
+  "warehouses": 11,
+  "articles": 799,
+  "weeks": 9,
+  "start": "2026-07-27",
+  "end": "2026-09-21",
+  "last_day": "2026-09-27",
+  "duplicates": 0,
+  "nan": 0,
+  "nonfinite": 0,
+  "negative": 0,
+  "zero_share": 0.5428582279442482,
+  "total": 215560.0,
+  "coverage_policy": "provisional_observed_sales_pairs",
+  "history_cutoff": "2026-07-26",
+  "first_week": "2026-07-27",
+  "official_pair_coverage_verified": false,
+  "fallback_pairs": 0,
+  "excluded_future_rows": {
+    "sales": 13543,
+    "stock": 61683
+  },
+  "predict_seconds": 26.5903787999996,
+  "total_seconds": 68.53771809999944,
+  "model_config": {
+    "model_type": "blend",
+    "model_file": "model.pkl",
+    "preprocessor_file": "preprocessor.pkl",
+    "granularity": "week",
+    "horizon": 9,
+    "forecast_weeks": 9,
+    "preprocessing_version": 3,
+    "stock_policy": "window",
+    "stock_aggregation": "sum",
+    "negative_stock_policy": "preserve",
+    "forecast_alignment": "next_calendar_monday",
+    "lookback_days": 180,
+    "target_transform": "none",
+    "feature_columns": [
+      "warehouse_name",
+      "article",
+      "category_lvl_1",
+      "category_lvl_2",
+      "category_lvl_3",
+      "characteristic",
+      "mean_7",
+      "mean_14",
+      "mean_28",
+      "mean_56",
+      "mean_90",
+      "zero_share_28",
+      "zero_share_90",
+      "last_value",
+      "days_since_last_sale",
+      "trend_28_90",
+      "n_sale_days_90",
+      "stock_last",
+      "stock_mean_28",
+      "stock_zero_share_90",
+      "stock_negative_share_90",
+      "stock_reserved",
+      "days_of_cover",
+      "last_week",
+      "mean_week_4",
+      "mean_week_8",
+      "mean_week_13",
+      "zero_week_share_13",
+      "mean_all",
+      "history_days",
+      "no_history",
+      "h",
+      "h_week",
+      "month",
+      "week_of_year",
+      "year",
+      "start_gap_days"
+    ],
+    "cat_features": [
+      "warehouse_name",
+      "article",
+      "category_lvl_1",
+      "category_lvl_2",
+      "category_lvl_3",
+      "characteristic"
+    ],
+    "postprocess": {
+      "zero_threshold": 0.0,
+      "round_int": false
+    },
+    "training_data_end": "2026-07-26",
+    "selection_data_end": "2026-07-26",
+    "random_seed": 42,
+    "thread_count": 8,
+    "n_cutoffs": 16,
+    "train_rows": 1160298,
+    "model_params": {
+      "weight_hurdle": 0.3,
+      "hurdle": {
+        "classifier": {
+          "n_estimators": 600
+        },
+        "regressor": {
+          "n_estimators": 600
+        }
+      },
+      "lgbm": {
+        "n_estimators": 600
+      },
+      "seed": 42,
+      "threads": 8
+    },
+    "trained_at": "2026-10-27T16:45:20+00:00",
+    "coverage_policy": "explicit_reference_or_observed_input_pairs",
+    "model_artifact_sha256": "4a61ddd9184814cc9a1cd381a177f1a36d590192a21821cc13dca72f892ead40",
+    "preprocessor_sha256": "5c7bf804a30f572e0b3d0ac585d959da94aa5ff9117ae7afd09e441acdb18b8f",
+    "validation": {
+      "scheme": "weekly_chronological_holdout",
+      "selection_origin": "2026-03-22",
+      "confirmation_origin": "2026-05-24",
+      "target_end": "2026-07-26",
+      "iterations": {
+        "hurdle": {
+          "classifier": 151,
+          "regressor": 188
+        },
+        "lgbm": 99
+      },
+      "metrics_kind": "out_of_sample_before_final_refit",
+      "metrics": {
+        "smape": 137.71744167433303,
+        "wape": 49.99534876876942,
+        "rmse": 3.4665680307847766,
+        "bias": 52.7403893837851,
+        "rmsle": 0.4817762681336462
+      },
+      "calibrated_metrics": {
+        "smape": 60.986027094648435,
+        "wape": 48.397792136842305,
+        "rmse": 3.480939011676144,
+        "bias": 74.42089670746726,
+        "rmsle": 0.5114807303521683
+      },
+      "calibrated_metrics_kind": "diagnostic_calibration_seen_truth",
+      "independent_confirmation_source": "..\\artifacts\\weekly-verified-20261027\\decision.json"
+    },
+    "calibration": {
+      "round_int": true
+    },
+    "provenance": {
+      "history_cutoff": "2026-07-26",
+      "recipe": "direct_weekly",
+      "seconds": 163.209,
+      "calibration_file": "..\\artifacts\\weekly-verified-20261027\\decision.json",
+      "calibration_sha256": "2eda382adcf1fe2d505946686a9cc05e35da157e992e6301d037b2ea095c974e"
+    }
+  },
+  "coverage_note": "Organizer reference catalogue unavailable. Observed-pair coverage is NOT confirmation of official completeness.",
+  "process_memory_gib": 2.874408721923828,
+  "memory_kind": "peak_working_set",
+  "sha256": {
+    "E:\\Dev_Cpp\\forecast-64-v1\\data\\sales_dataset_hakaton_train.csv": "34fe562dc1e0742aac1387d71ae20711e2f533fb56bbf34ce6363318e59a8e6b",
+    "E:\\Dev_Cpp\\forecast-64-v1\\data\\stock_dataset_hakaton_train.csv": "d744cac7f82fb14ec42e12818f6257c07392ea315f050355d357d3865ec8b166",
+    "E:\\Dev_Cpp\\forecast-64-v1\\submission\\weekly_observed\\forecast.csv": "d57c472afb7a971598a85cd766dcff76b031adacfe0241ec95cb4cfef5b1080e",
+    "E:\\Dev_Cpp\\forecast-64-v1\\submission\\weekly_observed\\observed_pairs.csv": "f32507d4fd7c6536e1c11ffe86760c3cdad967db3dde1acfb58b88327ff6771b",
+    "E:\\Dev_Cpp\\forecast-64-v1\\forecast-container\\model\\config.json": "c1cf5246151398129f4d6d479ed22352990427219fdae69c385a242db2836068",
+    "E:\\Dev_Cpp\\forecast-64-v1\\forecast-container\\model\\model.pkl": "4a61ddd9184814cc9a1cd381a177f1a36d590192a21821cc13dca72f892ead40",
+    "E:\\Dev_Cpp\\forecast-64-v1\\forecast-container\\model\\preprocessor.pkl": "5c7bf804a30f572e0b3d0ac585d959da94aa5ff9117ae7afd09e441acdb18b8f"
+  },
+  "forecast_sha256": "d57c472afb7a971598a85cd766dcff76b031adacfe0241ec95cb4cfef5b1080e"
+}

@@ -1,0 +1,86 @@
+{
+  "model_type": "blend",
+  "model_file": "model.pkl",
+  "preprocessor_file": "preprocessor.pkl",
+  "horizon": 64,
+  "lookback_days": 180,
+  "target_transform": "none",
+  "postprocess": {
+    "zero_threshold": 0.0,
+    "round_int": true
+  },
+  "random_seed": 42,
+  "thread_count": 8,
+  "feature_columns": [
+    "warehouse_name",
+    "article",
+    "category_lvl_1",
+    "category_lvl_2",
+    "category_lvl_3",
+    "characteristic",
+    "mean_7",
+    "mean_14",
+    "mean_28",
+    "mean_56",
+    "mean_90",
+    "zero_share_28",
+    "zero_share_90",
+    "last_value",
+    "days_since_last_sale",
+    "trend_28_90",
+    "n_sale_days_90",
+    "dow_mean",
+    "stock_last",
+    "stock_mean_28",
+    "stock_zero_share_90",
+    "days_of_cover",
+    "h",
+    "dow",
+    "month",
+    "day",
+    "week_of_year",
+    "is_weekend"
+  ],
+  "cat_features": [
+    "warehouse_name",
+    "article",
+    "category_lvl_1",
+    "category_lvl_2",
+    "category_lvl_3",
+    "characteristic"
+  ],
+  "trained_at": "2026-10-18T17:25:25",
+  "n_cutoffs": 28,
+  "train_rows": 14938454,
+  "model_params": {
+    "weight_hurdle": 0.3,
+    "hurdle": {},
+    "lgbm": {},
+    "seed": 42,
+    "threads": 8
+  },
+  "validation": {
+    "scheme": "strict-holdout",
+    "cutoff": "2026-05-28",
+    "max_horizon": 64,
+    "rows": 561728,
+    "metrics": {
+      "smape": 29.76409580193532,
+      "wape": 74.2366587621096,
+      "rmse": 0.9220772441153189,
+      "bias": 91.77624540529115,
+      "rmsle": 0.3335625548236381
+    },
+    "early_stopping": {
+      "cutoff": "2026-03-25",
+      "rows": 561728,
+      "iterations": {
+        "hurdle": {
+          "classifier": 75,
+          "regressor": 122
+        },
+        "lgbm": 101
+      }
+    }
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "schema_version": 3,
+  "granularity": "week",
+  "forecast_weeks": 9,
+  "origins": [
+    "2026-02-15",
+    "2026-05-24"
+  ],
+  "history_cutoff": "2026-07-26",
+  "selection": "first_origin_only",
+  "confirmation": "selected_candidate_only_second_origin",
+  "stock_aggregation": "sum",
+  "negative_stock_policy": "preserve",
+  "recipe": {
+    "seed": 42,
+    "threads": 8,
+    "weight_hurdle": 0.3,
+    "hurdle": {
+      "classifier": {
+        "n_estimators": 600
+      },
+      "regressor": {
+        "n_estimators": 600
+      }
+    },
+    "lgbm": {
+      "n_estimators": 600
+    }
+  },
+  "max_cutoffs": 16,
+  "early_stopping_rounds": 60,
+  "normalization": "local_baseline_minmax; not the official competition leaderboard",
+  "fingerprints": {
+    "algorithm": "sha256",
+    "inputs": {
+      "sales": {
+        "path": "data/sales_dataset_hakaton_train.csv",
+        "sha256": "34fe562dc1e0742aac1387d71ae20711e2f533fb56bbf34ce6363318e59a8e6b"
+      },
+      "stock": {
+        "path": "data/stock_dataset_hakaton_train.csv",
+        "sha256": "d744cac7f82fb14ec42e12818f6257c07392ea315f050355d357d3865ec8b166"
+      }
+    },
+    "sources": {
+      "forecast-container/app/__init__.py": "cc6de912a4232a6457c2d548a77cd03cb6a886b1f06da34ed238187337230cfd",
+      "forecast-container/app/calibration.py": "3cceb0ed048b629e228becbe1364e42681d45cf5b3c4df0c53b90b781205c347",
+      "forecast-container/app/features.py": "787ce24ae41fa3f9c2fcfce7f100e3454d1dff34fc62cb3c2bae32a5aaab9f2b",
+      "forecast-container/app/main.py": "f46e9e101e709f812ee049a0f592e07017255b61310b5f34fa5077f33bbd7c9f",
+      "forecast-container/app/metrics.py": "f5aee3deed35a182523fcdd9b78e7424b3682f8deb6484f1a2934a887e1f33d7",
+      "forecast-container/app/models/__init__.py": "f1bce80b0db5b8209ecd4d43c48bbc936ec2aa99d87760ac0e51df001d4e78a5",
+      "forecast-container/app/models/base.py": "0735ad9b6be32a3562c5124ce3fcd70dae89aec445cc9b8a980a28d6e440fc70",
+      "forecast-container/app/models/blend_model.py": "0df5a80432f6a89d98beae5a171964f46bf9743897ca78f0a90a23c81e7e6486",
+      "forecast-container/app/models/catboost_model.py": "e9e2dc6bf66094159aa65137a05dc440f4d52fb8d28cc70dd64426653936dfef",
+      "forecast-container/app/models/hurdle_model.py": "18c11f63bc4f857ffba628448cce3439a1caf6a52821d4aa5c759312f82b6ce9",
+      "forecast-container/app/models/lightgbm_model.py": "2d089735a3e7a87f74397bf8b509b34145ccc66daadf064bbcdde0b9e63cd3f9",
+      "forecast-container/app/predictor.py": "ac50bb8a482a5b99d468e882c243ca3490ce96aefa49f6e2009fe44bbf869bc7",
+      "forecast-container/app/submission.py": "f002014220be9769f15fbca4afa095e4169dff28514d10a48c615cb1f5d14aa6",
+      "forecast-container/app/temporal.py": "b6f28e8d26e8f06b01854bbf71d45cb6b72ea637939e8bfc97378aa63e7e969f",
+      "forecast-container/app/validators.py": "995735d21e27d03b444fa1c2d704f6d1cfe8f141a7abe1bbc127277a5d79309b",
+      "forecast-container/baseline.py": "68118c6a060610d65356332317df31572dd0376d946b16316b521d4bddd35ce0",
+      "forecast-container/evaluate.py": "0c408e225655b28a322124f1768ddc55fdec9d293dc5ba03a62f0dca291add82",
+      "forecast-container/scripts/select_candidate.py": "972e497774e2cd89ad113003d4628466e8fa6bbed56dafbc154ad75955375b23",
+      "forecast-container/scripts/verified_backtest.py": "66e8761031615768e98aefe4e9565fda069e0158e323be414122c47a5b771ad9",
+      "forecast-container/train.py": "d3814d1142b15f9860f218d62a51fe95b15cade191d1cebd5d0e166eaf326b9e"
+    }
+  },
+  "candidate_grid_sha256": "497a52bdfaa041e3ff5b5c7b84e84a8aef43309bc2abb5bab434982ee0331274",
+  "frozen_at": "2026-10-27T16:36:09+00:00"
+}

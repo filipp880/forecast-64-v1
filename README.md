@@ -2,7 +2,7 @@
 
 ML-модель и автономный FastAPI-сервис прогнозируют сумму `quantity` за неделю для пары `warehouse_name × article`. В репозитории находятся готовые веса; для запуска API переобучение не требуется.
 
-[Сборка, запуск и API](forecast-container/README.md) · [Техническое задание](docs/requirements/ТЗ_хакатон_обновлен.md) · [FAQ организаторов](docs/requirements/FAQ_Первый_чекпоинт.md) · [Итоги проверки](docs/reports/IMPLEMENTATION_WEEKLY_RU.md)
+[Сборка, запуск и API](forecast-container/README.md) · [Техническое задание](docs/requirements/ТЗ_хакатон_обновлен.md) · [FAQ организаторов](docs/requirements/FAQ_Первый_чекпоинт.md) · [Итоги проверки](docs/reports/IMPLEMENTATION_WEEKLY_RU.md) · [Все сохранённые эксперименты](experiments/README.md)
 
 ## Быстрый запуск
 
@@ -65,6 +65,7 @@ Direct weekly ансамбль: 0,3 × hurdle LightGBM + 0,7 × LightGBM на lo
 │   ├── README.md
 │   ├── requirements/          # актуальные ТЗ и FAQ
 │   └── reports/               # реализация, повторный аудит, метрики и идеи
+├── experiments/               # каталог, метрики и архив свидетельств экспериментов
 └── forecast-container/        # структура контейнера по п. 10.5 ТЗ
     ├── Dockerfile
     ├── .dockerignore
@@ -84,7 +85,7 @@ Direct weekly ансамбль: 0,3 × hurdle LightGBM + 0,7 × LightGBM на lo
     └── generate_submission.py
 ```
 
-Локальные `data/`, `artifacts/`, `submission/`, старые `demo/`, лаборатории и личные рабочие заметки исключены из Git. Эти файлы не удаляются. Основные веса и небольшие примеры входов включены в репозиторий.
+Локальные `data/`, `artifacts/`, `submission/`, старые `demo/`, рабочие лаборатории и личные заметки исключены из Git. Эти файлы не удаляются. Снимки результатов и исходников лабораторий опубликованы отдельно в [experiments/](experiments/README.md). Основные веса и небольшие примеры входов включены в репозиторий.
 
 ## Воспроизведение и submission
 

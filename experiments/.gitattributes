@@ -1,0 +1,5 @@
+*.md text eol=lf
+*.json text eol=lf
+# Preserve original snapshot bytes on Windows and Linux.
+evidence/** -text
+legacy_source/** -text

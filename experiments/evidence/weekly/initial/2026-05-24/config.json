@@ -1,0 +1,108 @@
+{
+  "model_type": "blend",
+  "model_file": "model.pkl",
+  "preprocessor_file": "preprocessor.pkl",
+  "granularity": "week",
+  "horizon": 9,
+  "forecast_weeks": 9,
+  "preprocessing_version": 3,
+  "stock_policy": "window",
+  "stock_aggregation": "sum",
+  "negative_stock_policy": "preserve",
+  "forecast_alignment": "next_calendar_monday",
+  "lookback_days": 180,
+  "target_transform": "none",
+  "feature_columns": [
+    "warehouse_name",
+    "article",
+    "category_lvl_1",
+    "category_lvl_2",
+    "category_lvl_3",
+    "characteristic",
+    "mean_7",
+    "mean_14",
+    "mean_28",
+    "mean_56",
+    "mean_90",
+    "zero_share_28",
+    "zero_share_90",
+    "last_value",
+    "days_since_last_sale",
+    "trend_28_90",
+    "n_sale_days_90",
+    "stock_last",
+    "stock_mean_28",
+    "stock_zero_share_90",
+    "stock_negative_share_90",
+    "stock_reserved",
+    "days_of_cover",
+    "last_week",
+    "mean_week_4",
+    "mean_week_8",
+    "mean_week_13",
+    "zero_week_share_13",
+    "mean_all",
+    "history_days",
+    "no_history",
+    "h",
+    "h_week",
+    "month",
+    "week_of_year",
+    "year",
+    "start_gap_days"
+  ],
+  "cat_features": [
+    "warehouse_name",
+    "article",
+    "category_lvl_1",
+    "category_lvl_2",
+    "category_lvl_3",
+    "characteristic"
+  ],
+  "postprocess": {
+    "zero_threshold": 0.0,
+    "round_int": false
+  },
+  "training_data_end": "2026-05-24",
+  "selection_data_end": "2026-05-24",
+  "random_seed": 42,
+  "thread_count": 8,
+  "n_cutoffs": 16,
+  "train_rows": 1115999,
+  "model_params": {
+    "weight_hurdle": 0.3,
+    "hurdle": {
+      "classifier": {
+        "n_estimators": 600
+      },
+      "regressor": {
+        "n_estimators": 600
+      }
+    },
+    "lgbm": {
+      "n_estimators": 600
+    },
+    "seed": 42,
+    "threads": 8
+  },
+  "trained_at": "2026-10-27T16:30:46+00:00",
+  "coverage_policy": "explicit_reference_or_observed_input_pairs",
+  "model_artifact_sha256": "857a5511fa7cf0f39724a4a2c98df9c9da2c7d8be024c11ef839bc85aaca3775",
+  "preprocessor_sha256": "5c7bf804a30f572e0b3d0ac585d959da94aa5ff9117ae7afd09e441acdb18b8f",
+  "validation": {
+    "scheme": "past_only_weekly",
+    "early_stopping_origin": "2026-03-22",
+    "iterations": {
+      "hurdle": {
+        "classifier": 151,
+        "regressor": 188
+      },
+      "lgbm": 99
+    }
+  },
+  "provenance": {
+    "protocol": "..\\artifacts\\weekly-20261027\\protocol.json",
+    "history_cutoff": "2026-05-24",
+    "label_end": "2026-05-24"
+  }
+}

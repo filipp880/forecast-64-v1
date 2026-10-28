@@ -1,0 +1,33 @@
+{
+  "schema_version": 3,
+  "granularity": "week",
+  "forecast_weeks": 9,
+  "origins": [
+    "2026-02-15",
+    "2026-05-24"
+  ],
+  "history_cutoff": "2026-07-26",
+  "selection": "first_origin_only",
+  "confirmation": "selected_candidate_only_second_origin",
+  "stock_aggregation": "sum",
+  "negative_stock_policy": "preserve",
+  "recipe": {
+    "seed": 42,
+    "threads": 8,
+    "weight_hurdle": 0.3,
+    "hurdle": {
+      "classifier": {
+        "n_estimators": 600
+      },
+      "regressor": {
+        "n_estimators": 600
+      }
+    },
+    "lgbm": {
+      "n_estimators": 600
+    }
+  },
+  "max_cutoffs": 16,
+  "early_stopping_rounds": 60,
+  "normalization": "local_baseline_minmax; not the official competition leaderboard"
+}

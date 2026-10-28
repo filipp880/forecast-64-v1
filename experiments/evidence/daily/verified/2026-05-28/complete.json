@@ -1,0 +1,26 @@
+{
+  "origin": "2026-05-28",
+  "evaluation_kind": "out_of_sample",
+  "rows": 561536,
+  "pairs": 8774,
+  "iterations": {
+    "hurdle": {
+      "classifier": 79,
+      "regressor": 122
+    },
+    "lgbm": 144
+  },
+  "seconds": 675.8329876999996,
+  "peak_gib": 9.089088439941406,
+  "incumbent": {
+    "smape": 29.589036276138327,
+    "wape": 73.70513350797371,
+    "rmse": 0.9144441951907596,
+    "bias": 91.6975104383545,
+    "rmsle": 0.33252921640522337,
+    "zero_share": 0.8998835337360382,
+    "volume_bias": -47.25079277540328
+  },
+  "sha256_model": "9e4494eb0392ae555c83aa119c2f5a32eddc2bf012a1a6324fb81e8c4d2b4a69",
+  "data_cutoff_assertions": true
+}

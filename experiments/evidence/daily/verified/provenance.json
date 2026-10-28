@@ -1,0 +1,14 @@
+{
+  "original_git_head": "f8a8c6e60edaf12af2fd351e290c35e6875afea0",
+  "original_model_sha256": "4eeb70277bbc85981774de19d69dc0657f9be11bd3e04962fa91aef9bb0aa168",
+  "input_sha256": {
+    "markdown hakaton.md": "2739c3b674bcce805aab6e51f94b0f0806b1816d1e03ea172cc5a2eceff73e07",
+    "sales_dataset_hakaton_train.csv": "34fe562dc1e0742aac1387d71ae20711e2f533fb56bbf34ce6363318e59a8e6b",
+    "stock_dataset_hakaton_train.csv": "d744cac7f82fb14ec42e12818f6257c07392ea315f050355d357d3865ec8b166",
+    "Нюансы 111.txt": "33bec2cee6b1943a36343805be4ed803cbf71be6472de473bee298f645092c7b"
+  },
+  "feature_policy_for_incumbent": "legacy; исходная математика признаков и исходные гиперпараметры; архив кода в recovery",
+  "confirmation_not_used_for_selection": true,
+  "frozen_grid_sha256": "c1e97bf19308a2dad64717ee438714c94a7191be404936969938c1b5c3a80ec8",
+  "selection_sha256": "f83f003208753fc5268db47f00b5a2a3a3457b905c03856f3fdcbe8522189c32"
+}

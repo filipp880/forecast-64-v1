@@ -1,0 +1,14 @@
+{
+  "origins": [
+    "2026-03-25",
+    "2026-05-28"
+  ],
+  "horizon": 64,
+  "selection": "first_origin_only",
+  "confirmation": "second_origin_only",
+  "surrogate": "sum of official weights * metric / incumbent_metric; LOCAL, NOT OFFICIAL",
+  "promotion": "selection index <=0.995, confirmation index <=0.995; neither origin SMAPE > incumbent*1.01; never tune on confirmation",
+  "seed": 42,
+  "threads": 8,
+  "max_cutoffs": 0
+}

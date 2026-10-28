@@ -1,0 +1,14 @@
+{
+  "last": "2026-07-31",
+  "stock_only_pairs": [
+    [
+      "warehouse_name_0",
+      "char_article_758"
+    ]
+  ],
+  "missing_recent_sales_pairs": 216,
+  "missing_pairs_in_recent_stock": 126,
+  "missing_pairs_forecast_sum": 0.0,
+  "missing_pairs_forecast_positive_rows": 0,
+  "recent_stock_only_vs_sales": 127
+}
