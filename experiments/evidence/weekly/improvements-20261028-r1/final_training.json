@@ -1,0 +1,27 @@
+{
+  "rows": 1160298,
+  "cutoffs": 16,
+  "model_sha256": "946d335dc8b46bd2efc962c9df85bb2511cff86ba1958009aee292597bbfb7b4",
+  "preprocessor_sha256": "e3d90e50898426ef3d6afe068b2195abdd11ca578b648971036aa6c82700bd66",
+  "estimator_best_iteration_after_fixed_refit": {
+    "dynamics": {
+      "hurdle": null,
+      "lgbm": 0
+    }
+  },
+  "refit_iterations_requested": {
+    "dynamics": {
+      "hurdle": {
+        "classifier": 120,
+        "regressor": 188
+      },
+      "lgbm": 88
+    }
+  },
+  "actual_tree_counts": {
+    "production.dynamics.hurdle.classifier": 120,
+    "production.dynamics.hurdle.regressor": 188,
+    "production.dynamics.lgbm.booster": 88
+  },
+  "iteration_note": "Fixed refit has no early stopping; SDK best_iteration=0/None means use all fitted trees. Actual counts verified from the saved boosters."
+}

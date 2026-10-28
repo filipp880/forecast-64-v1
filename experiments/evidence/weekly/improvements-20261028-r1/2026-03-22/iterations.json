@@ -1,0 +1,49 @@
+{
+  "base": {
+    "hurdle": {
+      "classifier": 81,
+      "regressor": 205
+    },
+    "lgbm": 65
+  },
+  "calendar": {
+    "hurdle": {
+      "classifier": 77,
+      "regressor": 190
+    },
+    "lgbm": 86
+  },
+  "dynamics": {
+    "hurdle": {
+      "classifier": 93,
+      "regressor": 168
+    },
+    "lgbm": 67
+  },
+  "monetary": {
+    "hurdle": {
+      "classifier": 73,
+      "regressor": 194
+    },
+    "lgbm": 69
+  },
+  "all": {
+    "hurdle": {
+      "classifier": 92,
+      "regressor": 163
+    },
+    "lgbm": 100
+  },
+  "poisson": 102,
+  "tweedie": 69,
+  "mae": 204,
+  "quantile": 74,
+  "catboost": 400,
+  "grouped": {
+    "-1": 276,
+    "0": 68,
+    "1": 76,
+    "2": 66,
+    "3": 243
+  }
+}

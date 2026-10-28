@@ -1,0 +1,8 @@
+{
+  "exit_code": 0,
+  "seconds": 18.923,
+  "log": "..\\artifacts\\improvements-20261028-r1-tests.log",
+  "scope": "regressions plus enhancements and frozen research integrity",
+  "passed": 113,
+  "failed": 0
+}

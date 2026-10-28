@@ -1,0 +1,7 @@
+{
+  "production_model_sha256": "946d335dc8b46bd2efc962c9df85bb2511cff86ba1958009aee292597bbfb7b4",
+  "rows": 4779,
+  "python_network_calls": 0,
+  "network_guard_passed": true,
+  "scope": "Python socket/DNS calls disabled during saved-model loading and sample inference; not an OS/Docker network-isolation proof"
+}

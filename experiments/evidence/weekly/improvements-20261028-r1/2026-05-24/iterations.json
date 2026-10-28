@@ -1,0 +1,16 @@
+{
+  "base": {
+    "hurdle": {
+      "classifier": 151,
+      "regressor": 188
+    },
+    "lgbm": 99
+  },
+  "dynamics": {
+    "hurdle": {
+      "classifier": 120,
+      "regressor": 188
+    },
+    "lgbm": 88
+  }
+}

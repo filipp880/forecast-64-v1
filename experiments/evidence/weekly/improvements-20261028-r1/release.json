@@ -1,0 +1,382 @@
+{
+  "run_date": "2026-10-28",
+  "run": "artifacts/improvements-20261028-r1",
+  "granularity": "week",
+  "forecast_weeks": 9,
+  "history_cutoff": "2026-07-26",
+  "model_type": "research",
+  "selected_recipe": {
+    "source": "dynamics",
+    "post": {
+      "medium_gate": 0.5,
+      "regular_scale": 1.1,
+      "round_int": true,
+      "round_threshold": 0.5
+    }
+  },
+  "available_feature_columns": 68,
+  "used_feature_columns": 49,
+  "calendar_in_selected_boosters": false,
+  "calendar_ablation_completed": true,
+  "model_artifact_sha256": "946d335dc8b46bd2efc962c9df85bb2511cff86ba1958009aee292597bbfb7b4",
+  "preprocessor_sha256": "e3d90e50898426ef3d6afe068b2195abdd11ca578b648971036aa6c82700bd66",
+  "selection_mean_ratio": 0.9907707318684135,
+  "confirmation": {
+    "promote": true,
+    "selected_recipe": {
+      "source": "dynamics",
+      "post": {
+        "medium_gate": 0.5,
+        "regular_scale": 1.1,
+        "round_int": true,
+        "round_threshold": 0.5
+      }
+    },
+    "confirmation_origin": "2026-05-24",
+    "baseline": {
+      "smape": 59.84081400986785,
+      "wape": 46.89542791477497,
+      "rmse": 3.3251095271091433,
+      "bias": 72.84481394574519,
+      "rmsle": 0.5066456468576161,
+      "volume_bias": -18.826177872388527,
+      "zero_share": 0.5515031785831876
+    },
+    "candidate": {
+      "smape": 59.32142514280857,
+      "wape": 46.328391387073076,
+      "rmse": 3.2149166050534688,
+      "bias": 72.6116771756442,
+      "rmsle": 0.5030187564812785,
+      "volume_bias": -13.672927302526228,
+      "zero_share": 0.5454879315148292
+    },
+    "local_ratio": 0.9875930206866236,
+    "improved_metrics": 5,
+    "baselines": {
+      "zero": {
+        "smape": 97.82944558417547,
+        "wape": 100.0,
+        "rmse": 8.219588439880315,
+        "bias": 100.0,
+        "rmsle": 1.1406240645114618,
+        "volume_bias": -100.0,
+        "zero_share": 1.0
+      },
+      "last_week": {
+        "smape": 74.48711474743433,
+        "wape": 58.4240717367142,
+        "rmse": 3.975393185766038,
+        "bias": 120.69905274773814,
+        "rmsle": 0.6178075873101514,
+        "volume_bias": -11.857374300623547,
+        "zero_share": 0.5192614542967859
+      },
+      "mean4": {
+        "smape": 97.19397737912999,
+        "wape": 50.40161162707458,
+        "rmse": 3.335562305622375,
+        "bias": 78.27097717016198,
+        "rmsle": 0.5092218593517666,
+        "volume_bias": -10.902619482696906,
+        "zero_share": 0.2372919990882152
+      },
+      "mean8": {
+        "smape": 111.89070788985389,
+        "wape": 49.605335041350344,
+        "rmse": 3.2809297930760715,
+        "bias": 65.2704588687401,
+        "rmsle": 0.4876706184392327,
+        "volume_bias": -13.079163762409806,
+        "zero_share": 0.1270800091178482
+      },
+      "mean13": {
+        "smape": 121.45158361945525,
+        "wape": 50.501899217177815,
+        "rmse": 3.350267513667183,
+        "bias": 61.8488600938514,
+        "rmsle": 0.48541565176576557,
+        "volume_bias": -14.08787960936424,
+        "zero_share": 0.06690221107818554
+      }
+    },
+    "segments": {
+      "holiday_week": {
+        "rows": 8774,
+        "candidate": {
+          "smape": 58.75254579256956,
+          "wape": 42.98638845871709,
+          "rmse": 3.10708507467561,
+          "bias": 60.12487541948327,
+          "rmsle": 0.4910834832763429,
+          "volume_bias": -14.206536800065205,
+          "zero_share": 0.5348757693184408
+        },
+        "baseline": {
+          "smape": 59.446492488419246,
+          "wape": 43.96446328144103,
+          "rmse": 3.2440086979208305,
+          "bias": 60.48552773559247,
+          "rmsle": 0.49454759318993563,
+          "volume_bias": -19.186567772434593,
+          "zero_share": 0.5404604513334853
+        }
+      },
+      "ordinary_week": {
+        "rows": 70192,
+        "candidate": {
+          "smape": 59.39253506158843,
+          "wape": 46.76507236652928,
+          "rmse": 3.2281422934825215,
+          "bias": 72.76512429934878,
+          "rmsle": 0.5044908122058467,
+          "volume_bias": -13.603203510229289,
+          "zero_share": 0.5468144517893777
+        },
+        "baseline": {
+          "smape": 59.89010420004893,
+          "wape": 47.278400800877556,
+          "rmse": 3.335108466625597,
+          "bias": 72.94864536755621,
+          "rmsle": 0.5081376513047415,
+          "volume_bias": -18.77908772378244,
+          "zero_share": 0.5528835194894005
+        }
+      },
+      "rare": {
+        "rows": 38358,
+        "candidate": {
+          "smape": 43.25536149324397,
+          "wape": 99.20526405742608,
+          "rmse": 0.7912492622197136,
+          "bias": 98.80456146979093,
+          "rmsle": 0.3983673535709044,
+          "volume_bias": -88.95060673389165,
+          "zero_share": 0.9685593618019709
+        },
+        "baseline": {
+          "smape": 43.400659301610744,
+          "wape": 99.5727226115194,
+          "rmse": 0.7939956644579738,
+          "bias": 98.98146943077299,
+          "rmsle": 0.40005455322707584,
+          "volume_bias": -90.3435310203384,
+          "zero_share": 0.9727566609312268
+        }
+      },
+      "regular": {
+        "rows": 24102,
+        "candidate": {
+          "smape": 61.380739801093775,
+          "wape": 39.187219915193886,
+          "rmse": 5.576558093121718,
+          "bias": 37.504928096892556,
+          "rmsle": 0.5801297360135944,
+          "volume_bias": -7.631454961815331,
+          "zero_share": 0.003692639614969712
+        },
+        "baseline": {
+          "smape": 61.59547943227304,
+          "wape": 39.69397482112921,
+          "rmse": 5.779453504848376,
+          "bias": 37.18196105797133,
+          "rmsle": 0.5797634335039693,
+          "volume_bias": -13.270404417807091,
+          "zero_share": 0.0033607169529499626
+        }
+      }
+    },
+    "selection_sha256": "166c246cd839dbaa29028f085e6b86d1a9a6e9ebea16ad126264271cf93b0ef8",
+    "protocol_sha256": "0f415b4c284a7e36e74938c83c4d9fcdc7eab7993d969229fbb19f02856be611",
+    "confirmation_previously_inspected": true,
+    "final_action": "refit_selected_candidate"
+  },
+  "final_training": {
+    "rows": 1160298,
+    "cutoffs": 16,
+    "model_sha256": "946d335dc8b46bd2efc962c9df85bb2511cff86ba1958009aee292597bbfb7b4",
+    "preprocessor_sha256": "e3d90e50898426ef3d6afe068b2195abdd11ca578b648971036aa6c82700bd66",
+    "estimator_best_iteration_after_fixed_refit": {
+      "dynamics": {
+        "hurdle": null,
+        "lgbm": 0
+      }
+    },
+    "refit_iterations_requested": {
+      "dynamics": {
+        "hurdle": {
+          "classifier": 120,
+          "regressor": 188
+        },
+        "lgbm": 88
+      }
+    },
+    "actual_tree_counts": {
+      "production.dynamics.hurdle.classifier": 120,
+      "production.dynamics.hurdle.regressor": 188,
+      "production.dynamics.lgbm.booster": 88
+    },
+    "iteration_note": "Fixed refit has no early stopping; SDK best_iteration=0/None means use all fitted trees. Actual counts verified from the saved boosters."
+  },
+  "tests": {
+    "exit_code": 0,
+    "seconds": 18.923,
+    "log": "..\\artifacts\\improvements-20261028-r1-tests.log",
+    "scope": "regressions plus enhancements and frozen research integrity",
+    "passed": 113,
+    "failed": 0
+  },
+  "runtime_native": {
+    "runtime": "native_windows_http",
+    "rows": 78993,
+    "weeks": 9,
+    "post_seconds": [
+      46.09510749999936,
+      46.56243309999991
+    ],
+    "get_csv_seconds": 0.9739597000007052,
+    "get_json_seconds": 0.08498570000119798,
+    "peak_service_gib": 2.7511367797851562,
+    "deterministic_bytes": true,
+    "submission_parity": true,
+    "get_csv_json_filters_parity": true,
+    "forecast_sha256": "09d4b781e1d37500a6ae36ef3e63cfeb38e92be773ce5dd85f04ae76f525c927",
+    "history_cutoff": "2026-07-26",
+    "network_isolation_verified": false,
+    "network_note": "Native HTTP verification; Docker --network none must be verified separately.",
+    "shell_api_test_passed": true
+  },
+  "docker": {
+    "rows": 78993,
+    "post_seconds": [
+      52.55557610599999,
+      38.86349334299999
+    ],
+    "get_csv_seconds": 0.15764906100000076,
+    "get_json_seconds": 0.06981880600000068,
+    "deterministic_bytes": true,
+    "csv_json_filters_parity": true,
+    "forecast_sha256": "3cc852fa92cbc819ad381f9cb0173963b55fae73ed3d3d82ae6fea6a33cb8f6c",
+    "runtime": "docker_linux",
+    "network_isolation_verified": true,
+    "network_mode": "none",
+    "memory_limit_gib": 7,
+    "cpus": 8,
+    "image_bytes": 305235950,
+    "build_seconds": 8.93102750000071,
+    "build_skipped": false,
+    "submission_parity": true,
+    "peak_memory_note": "Container completed under a hard 7 GiB limit; exact peak not sampled.",
+    "build_cache_note": "Base OS and pinned dependency layers reused cache; application and trained-model layers were rebuilt. This is not a clean dependency-download timing."
+  },
+  "inventory": {
+    "origin": "2026-07-26",
+    "stock_aggregation": "sum",
+    "negative_stock_policy": "preserve",
+    "raw_stock_rows": 6092305,
+    "negative_raw_rows": 55,
+    "negative_aggregated_daily_keys": 29,
+    "duplicate_rows_aggregated": 1250375,
+    "compared_keys": 4815362,
+    "equal_daily_stock": true
+  },
+  "offline": {
+    "production_model_sha256": "946d335dc8b46bd2efc962c9df85bb2511cff86ba1958009aee292597bbfb7b4",
+    "rows": 4779,
+    "python_network_calls": 0,
+    "network_guard_passed": true,
+    "scope": "Python socket/DNS calls disabled during saved-model loading and sample inference; not an OS/Docker network-isolation proof"
+  },
+  "weekday_transfer": {
+    "scope": "Synthetic shifts of sample history; alignment/contract checks, not historical quality or independent folds",
+    "scenarios": [
+      {
+        "last_date": "2026-07-27",
+        "first_week": "2026-08-03",
+        "rows": 4779,
+        "deterministic": true,
+        "future_stock_ignored": true
+      },
+      {
+        "last_date": "2026-07-28",
+        "first_week": "2026-08-03",
+        "rows": 4779,
+        "deterministic": true,
+        "future_stock_ignored": true
+      },
+      {
+        "last_date": "2026-07-29",
+        "first_week": "2026-08-03",
+        "rows": 4779,
+        "deterministic": true,
+        "future_stock_ignored": true
+      },
+      {
+        "last_date": "2026-07-30",
+        "first_week": "2026-08-03",
+        "rows": 4779,
+        "deterministic": true,
+        "future_stock_ignored": true
+      },
+      {
+        "last_date": "2026-07-31",
+        "first_week": "2026-08-03",
+        "rows": 4779,
+        "deterministic": true,
+        "future_stock_ignored": true
+      },
+      {
+        "last_date": "2026-08-01",
+        "first_week": "2026-08-03",
+        "rows": 4779,
+        "deterministic": true,
+        "future_stock_ignored": true
+      },
+      {
+        "last_date": "2026-08-02",
+        "first_week": "2026-08-03",
+        "rows": 4779,
+        "deterministic": true,
+        "future_stock_ignored": true
+      }
+    ],
+    "python_network_calls": 0,
+    "network_guard_passed": true,
+    "unknown_pair_fallback_passed": true,
+    "production_model_sha256": "946d335dc8b46bd2efc962c9df85bb2511cff86ba1958009aee292597bbfb7b4"
+  },
+  "official_pair_coverage_verified": false,
+  "submission": {
+    "rows": 78993,
+    "pairs": 8777,
+    "warehouses": 11,
+    "articles": 799,
+    "weeks": 9,
+    "start": "2026-07-27",
+    "end": "2026-09-21",
+    "last_day": "2026-09-27",
+    "duplicates": 0,
+    "nan": 0,
+    "nonfinite": 0,
+    "negative": 0,
+    "zero_share": 0.5242363247376349,
+    "total": 229687.0,
+    "coverage_policy": "provisional_observed_sales_pairs",
+    "history_cutoff": "2026-07-26",
+    "first_week": "2026-07-27",
+    "official_pair_coverage_verified": false,
+    "fallback_pairs": 0,
+    "excluded_future_rows": {
+      "sales": 13543,
+      "stock": 61683
+    },
+    "predict_seconds": 30.53950160000022,
+    "total_seconds": 75.08185839999896,
+    "coverage_note": "Organizer reference catalogue unavailable. Observed-pair coverage is NOT confirmation of official completeness.",
+    "process_memory_gib": 2.909160614013672,
+    "memory_kind": "peak_working_set",
+    "forecast_sha256": "2d60fa91e5d4ef04aa5d47225e615f9ddd7c21d976f4be1fcce1aafac7441edd"
+  },
+  "caveat": "Historical out-of-sample comparison on a previously inspected period; not a pristine unseen holdout or measured final submission accuracy.",
+  "ml_source_commit": "8dbbffc401a401ef68cb4d2210e44eab06bd8110"
+}
