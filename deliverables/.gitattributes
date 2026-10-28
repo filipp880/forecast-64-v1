@@ -1,3 +1,0 @@
-# CSV and manifests must retain the bytes covered by SHA-256.
-** -text
-*.md text eol=lf

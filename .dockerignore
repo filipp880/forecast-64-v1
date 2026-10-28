@@ -1,0 +1,16 @@
+# Build context содержит только зависимости, приложение и финальную модель.
+**
+!Dockerfile
+!.dockerignore
+!requirements.txt
+!requirements.lock.txt
+!app/
+!app/**
+!model/
+!model/model.pkl
+!model/preprocessor.pkl
+!model/config.json
+!scripts/
+!scripts/install_model_backends.py
+**/__pycache__/
+**/*.py[cod]

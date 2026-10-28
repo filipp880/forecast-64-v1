@@ -1,0 +1,5 @@
+# Optional candidates from ideas.txt; install only for this research run or
+# when deploying an ideas artifact whose selected members require them.
+-r requirements.lock.txt
+xgboost==3.2.0
+torch==2.13.0

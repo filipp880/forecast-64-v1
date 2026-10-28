@@ -1,22 +1,10 @@
-# Локальные исходные данные, материалы организаторов и рабочие документы
-/data/
-/docs/*
-!/docs/README.md
-!/docs/requirements/
-!/docs/reports/
-/docs/requirements/*
-!/docs/requirements/*.md
-/docs/reports/*
-!/docs/reports/*.md
-
-# Локальное восстановление, эксперименты и сдаваемые CSV/архивы
+# Local data; publish samples only
+/data/*
+!/data/sample*.csv
 /artifacts/
 /submission/
 /.audit-tmp/
 /demo/
-/FINAL_REPORT_RU.md
-
-# Локальные настройки инструментов и секреты
 /.omo/
 /.codex/
 /.agents/
@@ -28,8 +16,6 @@
 !.env.example
 *.pem
 *.key
-
-# Python и результаты тестов
 __pycache__/
 *.py[cod]
 .venv/
@@ -41,12 +27,14 @@ venv/
 .coverage
 htmlcov/
 *.egg-info/
-
-# Логи и служебные файлы ОС
 *.log
 Thumbs.db
 desktop.ini
 .DS_Store
-
-# Локальный текст выступления
-/PRESENTATION_RU.md
+/model_*/
+/forecast_result.csv
+/forecast_result.json
+/article_result.csv
+/warehouse_result.csv
+/pair_result.csv
+/full_result.csv

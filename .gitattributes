@@ -2,3 +2,7 @@
 *.sh text eol=lf
 Dockerfile text eol=lf
 *.pkl binary
+model/** -text
+forecast.csv -text
+observed_pairs.csv -text
+forecast.manifest.json -text

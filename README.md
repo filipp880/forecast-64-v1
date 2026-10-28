@@ -1,114 +1,121 @@
 # Прогноз недельных продаж на 9 недель
 
-ML-модель и автономный FastAPI-сервис прогнозируют сумму `quantity` за неделю для пары `warehouse_name × article`. В репозитории находятся готовые веса; для запуска API переобучение не требуется.
+## 1. Описание решения
 
-[Сборка, запуск и API](forecast-container/README.md) · [Техническое задание](docs/requirements/ТЗ_хакатон_обновлен.md) · [FAQ организаторов](docs/requirements/FAQ_Первый_чекпоинт.md) · [Новые улучшения](docs/reports/IMPROVEMENTS_EXECUTION_RU.md) · [Все сохранённые эксперименты](experiments/README.md)
+Глобальная модель прогнозирует сумму `quantity` за неделю для пары `warehouse_name × article`. Обученные веса находятся в `model/`; переобучение для запуска API не требуется.
 
-## Быстрый запуск
+Итоговое решение — ансамбль LightGBM: 0,3 × hurdle (вероятность положительной недели и Poisson-величина) + 0,7 × регрессия `log1p(quantity)`. Используются 49 признаков: история продаж, доли нулей, остатки, недельные EWMA, вариативность и агрегаты по артикулам/складам/категориям. Число деревьев — 120/188/88. Собственное log1p таргета обращается через expm1; затем применяется выбранная калибровка и округление недельного прогноза.
 
-Требуется Docker Engine с Linux-контейнерами; проверенная версия — 29.7.2. GPU не нужен. Команды выполняются из корня клонированного репозитория:
+Продажи суммируются через города и департаменты. Дубли остатков внутри дня суммируются, отрицательные остатки сохраняются. Будущие продажи и остатки не используются. Денежные поля не входят в выбранные 49 признаков.
+
+Историческая оценка на периоде 25.05–26.07.2026:
+
+| SMAPE | WAPE | RMSE | Средний абсолютный Bias по сериям | RMSLE |
+|---:|---:|---:|---:|---:|
+| 59,3214% | 46,3284% | 3,2149 | 72,6117% | 0,5030 |
+
+Период ранее просматривался; это историческая оценка, а не новый независимый holdout. Готовый прогноз — **[forecast.csv](forecast.csv)**. Параметры и SHA-256 — [forecast.manifest.json](forecast.manifest.json), состав пар — [observed_pairs.csv](observed_pairs.csv).
+
+Обучение реализовано в `train.py`; воспроизводимый исследовательский цикл — `scripts/research_weekly.py`. Полные исходные CSV размещаются локально в `data/` и не входят в Git/образ. Для нового исследовательского запуска:
 
 ```bash
-docker build -t forecast-api-weekly ./forecast-container
-docker run --rm -p 127.0.0.1:8000:8000 forecast-api-weekly
+python scripts/research_weekly.py --out artifacts/research-new --stage development
+python scripts/research_weekly.py --out artifacts/research-new --stage confirm
+python scripts/research_weekly.py --out artifacts/research-new --stage finalize
 ```
 
-Swagger: http://localhost:8000/docs. Проверка готовности: http://localhost:8000/health, поле `model_loaded` должно быть `true`.
+## 2. Инструкция по сборке
+
+Требуется Docker Engine с Linux-контейнерами. Используется Python 3.11, зависимости закреплены в `requirements.lock.txt`. GPU не нужен. Интернет требуется при первой сборке. Все команды выполняются из корня репозитория:
 
 ```bash
+docker build -t forecast-api .
+```
+
+`.dockerignore` исключает полные данные, локальные артефакты, кэши и секреты. В образ включены код приложения и готовая модель.
+
+## 3. Инструкция по запуску
+
+```bash
+docker run --rm --name forecast-api -p 127.0.0.1:8000:8000 forecast-api
+```
+
+Альтернатива: `docker compose up --build`. Swagger: http://localhost:8000/docs. Готовность: http://localhost:8000/health, поле `model_loaded` должно быть `true`.
+
+Модель работает автономно. Для запуска с отключённой сетью доступен `docker run --rm --network none forecast-api`; публикация порта хоста в таком режиме недоступна. CUDA-флаги не требуются.
+
+## 4. Описание API
+
+| Метод | Путь | Результат |
+|---|---|---|
+| GET | `/health` | состояние загрузки модели |
+| POST | `/predict` | полный прогноз по двум multipart-файлам |
+| GET | `/predict?article=…` | CSV по артикулу |
+| GET | `/predict?warehouse=…` | CSV по складу |
+| GET | `/predict?article=…&warehouse=…` | CSV пары |
+| GET | `/predict/all?format=csv` | весь последний прогноз |
+| GET | `/predict/all?format=json` | тот же прогноз в JSON |
+
+```bash
+curl -f http://localhost:8000/health
 curl -f -X POST http://localhost:8000/predict \
-  -F "sales=@forecast-container/data/sample_sales_6mo.csv" \
-  -F "stock=@forecast-container/data/sample_stock_6mo.csv" \
-  -o forecast.csv
-curl -f "http://localhost:8000/predict?article=char_article_0" -o article.csv
-curl -f "http://localhost:8000/predict?warehouse=warehouse_name_0" -o warehouse.csv
-curl -f "http://localhost:8000/predict/all?format=json" -o forecast.json
+  -F "sales=@data/sample_sales_6mo.csv" \
+  -F "stock=@data/sample_stock_6mo.csv" -o forecast_result.csv
+curl -f "http://localhost:8000/predict?article=char_article_0" -o article_result.csv
+curl -f "http://localhost:8000/predict?warehouse=warehouse_name_0" -o warehouse_result.csv
+curl -f "http://localhost:8000/predict?article=char_article_0&warehouse=warehouse_name_0" -o pair_result.csv
+curl -f "http://localhost:8000/predict/all?format=csv" -o full_result.csv
+curl -f "http://localhost:8000/predict/all?format=json" -o forecast_result.json
 ```
 
-POST принимает два CSV и рассчитывает прогноз. GET возвращает последний успешный результат, доступен фильтр по артикулу и/или складу. Выходные колонки: `week,warehouse_name,article,quantity`. Параметры, ошибки и полный набор примеров описаны в [README контейнера](forecast-container/README.md).
+sales: `date,composite_division,cities_name,warehouse_name,category_lvl_1,category_lvl_2,category_lvl_3,article,characteristic,quantity,sales_sum,discount_sum`.
 
-## Даты и данные
+stock: `date,warehouse_name,char_article,stock`. Пустая скидка допустима. В обоих файлах требуется минимум 180 календарных дней; более длинная история учитывается целиком.
 
-| Сценарий | Допустимая история | Первая неделя | Горизонт |
-|---|---|---|---|
-| Основное соревнование | sales и stock по 26.07.2026 включительно | 27.07.2026 | 9 полных недель, последний день 27.09 |
-| API | загруженные CSV, минимум 180 календарных дней | следующий календарный понедельник после max(sales.date) | 9 полных недель |
+Выход: `week,warehouse_name,article,quantity`. Прогноз начинается с понедельника следующей календарной недели после максимальной даты sales и содержит девять полных недель. Например, после 31.07.2026 первая неделя — 03.08.2026. Quantity — неотрицательное конечное число, сумма за полную неделю. GET читает кэш последнего успешного POST; до POST кэш отсутствует. Неверная схема/глубина истории — 422, отсутствие GET-фильтра или ещё не рассчитанный прогноз — 400.
 
-Quantity суммируется по неделе через департаменты/города. Дневные дубли stock суммируются, отрицательные остатки сохраняются. Денежные поля исследованы с exp-before-sum, но не входят в выбранный набор признаков. Собственный log1p недельного target применяется внутри одной ветви ансамбля и обращается через expm1.
+`sample_sales.csv` и `sample_stock.csv` содержат первые 100 строк для ознакомления со схемой. Для POST предназначены `sample_*_6mo.csv`.
 
-Полные исходные CSV организаторов нужно отдельно поместить в локальный `data/`. Они не входят в Git и Docker-образ. Папка `forecast-container/data/` содержит только примеры: первые 100 строк и небольшой срез с достаточной для API глубиной истории.
-
-## Модель и качество
-
-Direct weekly ансамбль: 0,3 × hurdle LightGBM + 0,7 × LightGBM на log1p недельного количества, **49 используемых признаков**. Добавлены недельная EWMA, вариативность, признаки редкого спроса и межскладские/категорийные средние. Для рядов с ≥45 днями продаж за 90 дней применяется множитель 1,1, затем недельное округление. Фактические числа деревьев — 120/188/88. Веса и параметры находятся в `forecast-container/model/`; история ограничена 26.07.2026.
-
-Рецепт выбран из 927 вариантов по трём окнам разработки и один раз проверен на периоде 25.05–26.07.2026. Это историческое out-of-sample сравнение: период уже просматривался ранее и не объявляется совершенно новым holdout.
-
-| Метрика | Новая модель | Прежняя weekly | «Последняя неделя» |
-|---|---:|---:|---:|
-| SMAPE, % | 59,3214 | 59,8408 | 74,4871 |
-| WAPE, % | 46,3284 | 46,8954 | 58,4241 |
-| RMSE | 3,2149 | 3,3251 | 3,9754 |
-| Средний абсолютный Bias по сериям, % | 72,6117 | 72,8448 | 120,6991 |
-| RMSLE | 0,5030 | 0,5066 | 0,6178 |
-
-Это историческая оценка, не официальный ранг и не измеренная точность конечного submission. Занижение общего объёма уменьшилось с 18,83% до **13,67%**; это другая величина, чем абсолютный Bias по сериям. Дневные 28–30% SMAPE с недельными значениями напрямую не сравниваются. [Причины](docs/reports/METRICS_COMPARISON_RU.md), [все новые результаты](experiments/IMPROVEMENTS_20261028_RU.md).
-
-Проверки от 28.10.2026: **113 тестов**; Docker-инференс без сети при лимите 7 GiB/8 CPU, POST 52,56/38,86 с, GET CSV 0,158 с, JSON 0,070 с; образ 305,2 MB. Native HTTP POST 46,10/46,56 с, пик памяти сервиса 2,75 GiB. Повторные POST одинаковы, значения совпали с submission. Точный пик памяти контейнера не измерялся. [Журналы проверок](forecast-container/logs/README.md).
-
-## Структура репозитория
+## 5. Структура репозитория
 
 ```text
 .
+├── Dockerfile
+├── docker-compose.yml
+├── requirements.txt
+├── requirements.lock.txt
 ├── README.md
-├── docs/
-│   ├── README.md
-│   ├── requirements/          # актуальные ТЗ и FAQ
-│   └── reports/               # реализация, повторный аудит, метрики и идеи
-├── experiments/               # каталог, метрики и архив свидетельств экспериментов
-├── deliverables/              # публикуемая копия CSV, manifest и архива
-└── forecast-container/        # структура контейнера по п. 10.5 ТЗ
-    ├── Dockerfile
-    ├── .dockerignore
-    ├── docker-compose.yml
-    ├── requirements*.txt
-    ├── README.md
-    ├── app/                   # main.py, predictor.py, validators.py и ML-модули
-    ├── model/                 # model.pkl, preprocessor.pkl, config.json
-    ├── data/                  # только sample CSV
-    ├── tests/                 # test_api.sh и регрессии
-    ├── scripts/               # backtest, проверка и упаковка
-    ├── logs/                  # компактные результаты
-    ├── train.py
-    ├── evaluate.py
-    ├── baseline.py
-    ├── score.py
-    └── generate_submission.py
+├── app/
+│   ├── main.py                 # FastAPI
+│   ├── predictor.py            # загрузка модели и прогноз
+│   ├── validators.py           # валидация CSV
+│   └── …                      # признаки, модели, метрики
+├── model/
+│   ├── model.pkl
+│   ├── preprocessor.pkl
+│   └── config.json
+├── data/
+│   ├── sample_sales.csv
+│   ├── sample_stock.csv
+│   ├── sample_sales_6mo.csv
+│   └── sample_stock_6mo.csv
+├── tests/
+│   ├── test_api.sh
+│   └── test_*.py
+├── scripts/                   # обучение и подготовка примеров
+├── train.py
+├── evaluate.py
+├── baseline.py
+├── score.py
+├── generate_submission.py
+├── forecast.csv               # готовый прогноз
+├── observed_pairs.csv
+└── forecast.manifest.json
 ```
 
-Локальные `data/`, `artifacts/`, `submission/`, старые `demo/`, рабочие лаборатории и личные заметки исключены из Git. Эти файлы не удаляются. Снимки результатов и исходников лабораторий опубликованы отдельно в [experiments/](experiments/README.md). Основные веса и небольшие примеры входов включены в репозиторий.
+## 6. Известные ограничения
 
-## Воспроизведение и submission
-
-Для локального Python-запуска проверены Python 3.10/3.11; Docker использует 3.11. Зависимости зафиксированы в requirements.lock.txt, тестовые — в requirements-dev.txt.
-
-```bash
-cd forecast-container
-python -m pip install -r requirements-dev.txt
-python -m pytest tests -q
-python generate_submission.py --allow-observed-pairs --out ../submission/weekly_improved_20261028/forecast.csv
-```
-
-Последняя команда требует отдельно предоставленных исходных CSV и создаёт локальный `submission/weekly_improved_20261028/forecast.csv`. Он предварительный по покрытию: официальный каталог пар отсутствует. Для 8 777 наблюдаемых пар получается 78 993 строки. Условные 79 101 строка из ТЗ относятся к полному произведению 11 × 799.
-
-При получении эталонного списка следует использовать `--required-pairs path.csv`; автоматического добавления неизвестных пар нет. Команды обучения, скоринга, проверки и упаковки — в [инструкции контейнера](forecast-container/README.md). Существующие результаты не перезаписываются без явно поддерживаемого флага или нового выходного пути.
-
-## Известные ограничения
-
-- Соответствие состава пар скрытому эталону не подтверждено.
-- Федеральный календарь РФ реализован локально и проверен отдельной абляцией; выбранная модель использует профиль dynamics, без специальных праздничных колонок. Подтверждения связи анонимных дат/складов с реальными датами/регионами нет.
-- Исследованы 11 обучаемых семейств и 927 рецептов; поиск не исчерпывает все возможные улучшения. Текущие окна уже просмотрены и не подходят для нового независимого подтверждения после повторного подбора.
-- API хранит один последний прогноз на процесс. Очереди, пользовательской истории и отдельного веб-интерфейса нет.
-- Качество на новых данных и время на другом оборудовании не гарантируются приведёнными измерениями.
-
-[Полный повторный аудит](docs/reports/RECHECK_TZ_AND_IMPROVEMENTS_RU.md) и [результаты его выполнения](docs/reports/IMPROVEMENTS_EXECUTION_RU.md). Основная сдача — CSV и код; Docker/API является дополнительным заданием. [Git-папка с подготовленным пакетом](https://github.com/filipp880/forecast-64-v1/tree/main/deliverables/weekly-20261028) содержит предварительный по покрытию прогноз. Уведомление организатору не отправлено; текст для передачи подготовлен в README пакета.
+- Готовый CSV содержит 78 993 строки: 8 777 наблюдавшихся пар × 9 недель. Официальный эталонный список пар отсутствует, поэтому точное совпадение покрытия с ним не подтверждено.
+- Готовый прогноз использует историю только по 26.07.2026 и охватывает 27.07–27.09.2026; последняя метка week — 21.09.2026. API использует даты загруженных данных.
+- Именованные праздничные признаки не входят в выбранные 49 признаков; календарная сезонность представлена общими признаками месяца/недели/года. Региональная привязка анонимных складов неизвестна.
+- Кэш находится в памяти одного процесса и очищается при перезапуске. Отдельный пользовательский веб-интерфейс не предусмотрен.
