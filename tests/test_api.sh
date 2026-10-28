@@ -30,7 +30,9 @@ import csv,sys,math
 from datetime import date,timedelta
 with open(sys.argv[2], newline="", encoding="utf-8-sig") as stream:
     sales = list(csv.DictReader(stream))
-pairs = {(r["warehouse_name"], r["article"]) for r in sales}
+warehouses = {r["warehouse_name"] for r in sales}
+articles = {r["article"] for r in sales}
+pairs = {(warehouse, article) for warehouse in warehouses for article in articles}
 last = max(date.fromisoformat(r["date"]) for r in sales)
 first = last - timedelta(days=last.weekday()) + timedelta(days=7)
 weeks = {(first + timedelta(weeks=i)).isoformat() for i in range(9)}

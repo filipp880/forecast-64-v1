@@ -1,16 +1,27 @@
 {
+  "rows": 79101,
+  "pairs": 8789,
+  "warehouses": 11,
+  "articles": 799,
+  "added_rows": 108,
+  "added_pairs": 12,
+  "existing_predictions_unchanged": true,
   "model_files": {
     "model.pkl": "946d335dc8b46bd2efc962c9df85bb2511cff86ba1958009aee292597bbfb7b4",
     "preprocessor.pkl": "e3d90e50898426ef3d6afe068b2195abdd11ca578b648971036aa6c82700bd66",
     "config.json": "407a48afbf52f7d3dd97085b61b44b255e8130614e69c058133f6b01c337c84e"
   },
-  "forecast_sha256": "2d60fa91e5d4ef04aa5d47225e615f9ddd7c21d976f4be1fcce1aafac7441edd",
-  "rows": 78993,
-  "observed_pairs": 8777,
+  "forecast_sha256": "b8b9c9f64b1d13058fb438cc4cf71e7add9c983945805c17fe10483090c93e21",
+  "previous_forecast_sha256": "2d60fa91e5d4ef04aa5d47225e615f9ddd7c21d976f4be1fcce1aafac7441edd",
+  "required_pairs_sha256": "8d1ebca8207f4e7971084425b159656b7d411cbeb991c77121d1cc8f153d3632",
   "forecast_weeks": 9,
   "history_cutoff": "2026-07-26",
   "first_week": "2026-07-27",
   "last_week": "2026-09-21",
-  "coverage": "observed_pairs_only",
-  "official_pair_coverage_verified": false
+  "coverage": "full_warehouse_article_product",
+  "official_pair_coverage_verified": false,
+  "coverage_basis": "Scorer reported 79101 expected rows, 108 missing and zero extra for prior observed-pair submission; exact external key equality awaits recheck",
+  "fallback": "Existing no-history rule: weekly article mean across observed warehouse pairs over last 28 days, rounded",
+  "training_executed": false,
+  "tests_executed": false
 }

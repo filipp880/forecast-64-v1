@@ -147,6 +147,13 @@ class Predictor:
         forecast["week"] = forecast.week.dt.strftime("%Y-%m-%d")
         forecast["quantity"] = predictions.astype(float)
         forecast = forecast.sort_values(["week", *KEY]).reset_index(drop=True)
+        if required_pairs is None:
+            from .coverage import complete_cartesian_forecast
+            round_fallback = bool(post.get('round_int',False))
+            if getattr(self.model,'name',None)=='research':
+                round_fallback = self.model.recipe.get('post',{}).get('round_int',True)
+            if getattr(self.model,'name',None)=='ideas':round_fallback=True
+            forecast,pairs,_ = complete_cartesian_forecast(forecast,df_sales,cutoff,first,round_fallback)
         validate_forecast(forecast, pairs, first)
         self._cached_forecast = forecast
         return forecast

@@ -10,6 +10,7 @@ from app.features import COMPETITION_CUTOFF, COMPETITION_FIRST_WEEK, KEY, trunca
 from app.predictor import Predictor
 from app.submission import normalized_pairs, validate_forecast
 from app.validators import validate_sales_csv, validate_stock_csv
+from app.coverage import complete_cartesian_forecast
 
 
 def main(argv=None):
@@ -20,11 +21,13 @@ def main(argv=None):
     ap.add_argument("--model-dir", type=Path, default=Path(__file__).resolve().parent / "model")
     ap.add_argument("--required-pairs", type=Path, help="Official catalogue or submission template with pair columns")
     ap.add_argument("--allow-observed-pairs", action="store_true", help="Explicitly generate a PROVISIONAL observed-pair forecast")
+    ap.add_argument("--all-combinations", action="store_true", help="Full warehouse x article product; default without a catalogue")
     ap.add_argument("--out", type=Path)
     ap.add_argument("--overwrite", action="store_true")
     a = ap.parse_args(argv)
-    if not a.required_pairs and not a.allow_observed_pairs:
-        ap.error("Provide --required-pairs; without an official catalogue explicitly pass --allow-observed-pairs")
+    if sum(bool(x) for x in (a.required_pairs,a.allow_observed_pairs,a.all_combinations))>1:
+        ap.error("Choose only one pair-coverage option")
+    if not a.required_pairs and not a.allow_observed_pairs:a.all_combinations=True
     a.out = a.out or root / "forecast.csv"
     if a.out.exists() and not a.overwrite:
         raise FileExistsError(f"File exists: {a.out}")
@@ -46,21 +49,23 @@ def main(argv=None):
     if not forecast.equals(predictor.predict(sales, stock, history_cutoff=COMPETITION_CUTOFF,
                                             first_week=COMPETITION_FIRST_WEEK, required_pairs=pairs)):
         raise ValueError("Forecast is not deterministic")
+    if a.all_combinations:
+        forecast,pairs,_=complete_cartesian_forecast(forecast,sales,COMPETITION_CUTOFF,COMPETITION_FIRST_WEEK)
     summary = validate_forecast(forecast, pairs, COMPETITION_FIRST_WEEK)
     a.out.parent.mkdir(parents=True, exist_ok=True)
     forecast.to_csv(a.out, index=False)
-    catalogue = a.out.with_name("required_pairs.csv" if a.required_pairs else "observed_pairs.csv")
+    catalogue = a.out.with_name("required_pairs.csv" if a.required_pairs or a.all_combinations else "observed_pairs.csv")
     pairs.to_csv(catalogue, index=False)
     observed = pd.MultiIndex.from_frame(normalized_pairs(sales))
     fallback = len(pd.MultiIndex.from_frame(pairs).difference(observed))
     summary.update(history_cutoff="2026-07-26", first_week="2026-07-27",
-                   coverage_policy="official_reference_pairs" if a.required_pairs else "provisional_observed_sales_pairs",
+                   coverage_policy="official_reference_pairs" if a.required_pairs else ("full_warehouse_article_product" if a.all_combinations else "provisional_observed_sales_pairs"),
                    official_pair_coverage_verified=bool(a.required_pairs), fallback_pairs=fallback,
                    excluded_future_rows={"sales": original_counts[0] - len(sales), "stock": original_counts[1] - len(stock)},
                    predict_seconds=seconds, total_seconds=time.perf_counter() - started,
                    model_config=predictor.config,
                    coverage_note="Official catalogue supplied" if a.required_pairs else
-                   "Organizer reference catalogue unavailable. Observed-pair coverage is NOT confirmation of official completeness.")
+                   ("Full Cartesian product; exact external key-set equality pending scorer confirmation" if a.all_combinations else "Observed pairs only"))
     try:
         import psutil
         mem = psutil.Process().memory_info()

@@ -5,4 +5,5 @@ Dockerfile text eol=lf
 model/** -text
 forecast.csv -text
 observed_pairs.csv -text
+required_pairs.csv -text
 forecast.manifest.json -text

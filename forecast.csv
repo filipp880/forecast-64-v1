@@ -657,6 +657,7 @@ week,warehouse_name,article,quantity
 2026-07-27,warehouse_name_0,char_article_689,0.0
 2026-07-27,warehouse_name_0,char_article_69,0.0
 2026-07-27,warehouse_name_0,char_article_690,0.0
+2026-07-27,warehouse_name_0,char_article_691,0.0
 2026-07-27,warehouse_name_0,char_article_692,0.0
 2026-07-27,warehouse_name_0,char_article_693,0.0
 2026-07-27,warehouse_name_0,char_article_694,0.0
@@ -707,6 +708,7 @@ week,warehouse_name,article,quantity
 2026-07-27,warehouse_name_0,char_article_734,0.0
 2026-07-27,warehouse_name_0,char_article_735,0.0
 2026-07-27,warehouse_name_0,char_article_736,0.0
+2026-07-27,warehouse_name_0,char_article_737,0.0
 2026-07-27,warehouse_name_0,char_article_738,0.0
 2026-07-27,warehouse_name_0,char_article_739,0.0
 2026-07-27,warehouse_name_0,char_article_74,0.0
@@ -715,6 +717,7 @@ week,warehouse_name,article,quantity
 2026-07-27,warehouse_name_0,char_article_742,0.0
 2026-07-27,warehouse_name_0,char_article_743,0.0
 2026-07-27,warehouse_name_0,char_article_744,0.0
+2026-07-27,warehouse_name_0,char_article_745,0.0
 2026-07-27,warehouse_name_0,char_article_746,0.0
 2026-07-27,warehouse_name_0,char_article_747,0.0
 2026-07-27,warehouse_name_0,char_article_748,0.0
@@ -727,10 +730,14 @@ week,warehouse_name,article,quantity
 2026-07-27,warehouse_name_0,char_article_754,0.0
 2026-07-27,warehouse_name_0,char_article_755,0.0
 2026-07-27,warehouse_name_0,char_article_756,0.0
+2026-07-27,warehouse_name_0,char_article_757,0.0
+2026-07-27,warehouse_name_0,char_article_758,0.0
 2026-07-27,warehouse_name_0,char_article_759,0.0
 2026-07-27,warehouse_name_0,char_article_76,0.0
+2026-07-27,warehouse_name_0,char_article_760,0.0
 2026-07-27,warehouse_name_0,char_article_761,0.0
 2026-07-27,warehouse_name_0,char_article_762,0.0
+2026-07-27,warehouse_name_0,char_article_763,0.0
 2026-07-27,warehouse_name_0,char_article_764,0.0
 2026-07-27,warehouse_name_0,char_article_765,0.0
 2026-07-27,warehouse_name_0,char_article_766,1.0
@@ -760,6 +767,7 @@ week,warehouse_name,article,quantity
 2026-07-27,warehouse_name_0,char_article_788,0.0
 2026-07-27,warehouse_name_0,char_article_789,0.0
 2026-07-27,warehouse_name_0,char_article_79,0.0
+2026-07-27,warehouse_name_0,char_article_790,1.0
 2026-07-27,warehouse_name_0,char_article_791,0.0
 2026-07-27,warehouse_name_0,char_article_792,0.0
 2026-07-27,warehouse_name_0,char_article_793,0.0
@@ -4015,6 +4023,7 @@ week,warehouse_name,article,quantity
 2026-07-27,warehouse_name_4,char_article_121,1.0
 2026-07-27,warehouse_name_4,char_article_122,0.0
 2026-07-27,warehouse_name_4,char_article_123,0.0
+2026-07-27,warehouse_name_4,char_article_124,0.0
 2026-07-27,warehouse_name_4,char_article_125,0.0
 2026-07-27,warehouse_name_4,char_article_126,0.0
 2026-07-27,warehouse_name_4,char_article_127,1.0
@@ -4098,6 +4107,7 @@ week,warehouse_name,article,quantity
 2026-07-27,warehouse_name_4,char_article_198,1.0
 2026-07-27,warehouse_name_4,char_article_199,0.0
 2026-07-27,warehouse_name_4,char_article_2,0.0
+2026-07-27,warehouse_name_4,char_article_20,0.0
 2026-07-27,warehouse_name_4,char_article_200,0.0
 2026-07-27,warehouse_name_4,char_article_201,29.0
 2026-07-27,warehouse_name_4,char_article_202,13.0
@@ -6997,6 +7007,7 @@ week,warehouse_name,article,quantity
 2026-07-27,warehouse_name_7,char_article_650,1.0
 2026-07-27,warehouse_name_7,char_article_651,2.0
 2026-07-27,warehouse_name_7,char_article_652,1.0
+2026-07-27,warehouse_name_7,char_article_653,0.0
 2026-07-27,warehouse_name_7,char_article_654,0.0
 2026-07-27,warehouse_name_7,char_article_655,2.0
 2026-07-27,warehouse_name_7,char_article_656,0.0
@@ -8748,6 +8759,7 @@ week,warehouse_name,article,quantity
 2026-07-27,warehouse_name_9,char_article_79,0.0
 2026-07-27,warehouse_name_9,char_article_790,0.0
 2026-07-27,warehouse_name_9,char_article_791,0.0
+2026-07-27,warehouse_name_9,char_article_792,1.0
 2026-07-27,warehouse_name_9,char_article_793,0.0
 2026-07-27,warehouse_name_9,char_article_794,2.0
 2026-07-27,warehouse_name_9,char_article_795,3.0
@@ -9434,6 +9446,7 @@ week,warehouse_name,article,quantity
 2026-08-03,warehouse_name_0,char_article_689,0.0
 2026-08-03,warehouse_name_0,char_article_69,0.0
 2026-08-03,warehouse_name_0,char_article_690,0.0
+2026-08-03,warehouse_name_0,char_article_691,0.0
 2026-08-03,warehouse_name_0,char_article_692,0.0
 2026-08-03,warehouse_name_0,char_article_693,0.0
 2026-08-03,warehouse_name_0,char_article_694,0.0
@@ -9484,6 +9497,7 @@ week,warehouse_name,article,quantity
 2026-08-03,warehouse_name_0,char_article_734,0.0
 2026-08-03,warehouse_name_0,char_article_735,0.0
 2026-08-03,warehouse_name_0,char_article_736,0.0
+2026-08-03,warehouse_name_0,char_article_737,0.0
 2026-08-03,warehouse_name_0,char_article_738,0.0
 2026-08-03,warehouse_name_0,char_article_739,0.0
 2026-08-03,warehouse_name_0,char_article_74,0.0
@@ -9492,6 +9506,7 @@ week,warehouse_name,article,quantity
 2026-08-03,warehouse_name_0,char_article_742,0.0
 2026-08-03,warehouse_name_0,char_article_743,0.0
 2026-08-03,warehouse_name_0,char_article_744,0.0
+2026-08-03,warehouse_name_0,char_article_745,0.0
 2026-08-03,warehouse_name_0,char_article_746,0.0
 2026-08-03,warehouse_name_0,char_article_747,0.0
 2026-08-03,warehouse_name_0,char_article_748,0.0
@@ -9504,10 +9519,14 @@ week,warehouse_name,article,quantity
 2026-08-03,warehouse_name_0,char_article_754,0.0
 2026-08-03,warehouse_name_0,char_article_755,0.0
 2026-08-03,warehouse_name_0,char_article_756,0.0
+2026-08-03,warehouse_name_0,char_article_757,0.0
+2026-08-03,warehouse_name_0,char_article_758,0.0
 2026-08-03,warehouse_name_0,char_article_759,0.0
 2026-08-03,warehouse_name_0,char_article_76,0.0
+2026-08-03,warehouse_name_0,char_article_760,0.0
 2026-08-03,warehouse_name_0,char_article_761,0.0
 2026-08-03,warehouse_name_0,char_article_762,0.0
+2026-08-03,warehouse_name_0,char_article_763,0.0
 2026-08-03,warehouse_name_0,char_article_764,0.0
 2026-08-03,warehouse_name_0,char_article_765,0.0
 2026-08-03,warehouse_name_0,char_article_766,1.0
@@ -9537,6 +9556,7 @@ week,warehouse_name,article,quantity
 2026-08-03,warehouse_name_0,char_article_788,0.0
 2026-08-03,warehouse_name_0,char_article_789,0.0
 2026-08-03,warehouse_name_0,char_article_79,0.0
+2026-08-03,warehouse_name_0,char_article_790,1.0
 2026-08-03,warehouse_name_0,char_article_791,0.0
 2026-08-03,warehouse_name_0,char_article_792,0.0
 2026-08-03,warehouse_name_0,char_article_793,0.0
@@ -12792,6 +12812,7 @@ week,warehouse_name,article,quantity
 2026-08-03,warehouse_name_4,char_article_121,1.0
 2026-08-03,warehouse_name_4,char_article_122,0.0
 2026-08-03,warehouse_name_4,char_article_123,0.0
+2026-08-03,warehouse_name_4,char_article_124,0.0
 2026-08-03,warehouse_name_4,char_article_125,0.0
 2026-08-03,warehouse_name_4,char_article_126,0.0
 2026-08-03,warehouse_name_4,char_article_127,1.0
@@ -12875,6 +12896,7 @@ week,warehouse_name,article,quantity
 2026-08-03,warehouse_name_4,char_article_198,1.0
 2026-08-03,warehouse_name_4,char_article_199,0.0
 2026-08-03,warehouse_name_4,char_article_2,0.0
+2026-08-03,warehouse_name_4,char_article_20,0.0
 2026-08-03,warehouse_name_4,char_article_200,0.0
 2026-08-03,warehouse_name_4,char_article_201,29.0
 2026-08-03,warehouse_name_4,char_article_202,13.0
@@ -15774,6 +15796,7 @@ week,warehouse_name,article,quantity
 2026-08-03,warehouse_name_7,char_article_650,1.0
 2026-08-03,warehouse_name_7,char_article_651,2.0
 2026-08-03,warehouse_name_7,char_article_652,1.0
+2026-08-03,warehouse_name_7,char_article_653,0.0
 2026-08-03,warehouse_name_7,char_article_654,0.0
 2026-08-03,warehouse_name_7,char_article_655,3.0
 2026-08-03,warehouse_name_7,char_article_656,0.0
@@ -17525,6 +17548,7 @@ week,warehouse_name,article,quantity
 2026-08-03,warehouse_name_9,char_article_79,0.0
 2026-08-03,warehouse_name_9,char_article_790,0.0
 2026-08-03,warehouse_name_9,char_article_791,0.0
+2026-08-03,warehouse_name_9,char_article_792,1.0
 2026-08-03,warehouse_name_9,char_article_793,0.0
 2026-08-03,warehouse_name_9,char_article_794,2.0
 2026-08-03,warehouse_name_9,char_article_795,3.0
@@ -18211,6 +18235,7 @@ week,warehouse_name,article,quantity
 2026-08-10,warehouse_name_0,char_article_689,0.0
 2026-08-10,warehouse_name_0,char_article_69,0.0
 2026-08-10,warehouse_name_0,char_article_690,0.0
+2026-08-10,warehouse_name_0,char_article_691,0.0
 2026-08-10,warehouse_name_0,char_article_692,0.0
 2026-08-10,warehouse_name_0,char_article_693,0.0
 2026-08-10,warehouse_name_0,char_article_694,0.0
@@ -18261,6 +18286,7 @@ week,warehouse_name,article,quantity
 2026-08-10,warehouse_name_0,char_article_734,0.0
 2026-08-10,warehouse_name_0,char_article_735,0.0
 2026-08-10,warehouse_name_0,char_article_736,0.0
+2026-08-10,warehouse_name_0,char_article_737,0.0
 2026-08-10,warehouse_name_0,char_article_738,0.0
 2026-08-10,warehouse_name_0,char_article_739,0.0
 2026-08-10,warehouse_name_0,char_article_74,0.0
@@ -18269,6 +18295,7 @@ week,warehouse_name,article,quantity
 2026-08-10,warehouse_name_0,char_article_742,0.0
 2026-08-10,warehouse_name_0,char_article_743,0.0
 2026-08-10,warehouse_name_0,char_article_744,0.0
+2026-08-10,warehouse_name_0,char_article_745,0.0
 2026-08-10,warehouse_name_0,char_article_746,0.0
 2026-08-10,warehouse_name_0,char_article_747,0.0
 2026-08-10,warehouse_name_0,char_article_748,0.0
@@ -18281,10 +18308,14 @@ week,warehouse_name,article,quantity
 2026-08-10,warehouse_name_0,char_article_754,0.0
 2026-08-10,warehouse_name_0,char_article_755,0.0
 2026-08-10,warehouse_name_0,char_article_756,0.0
+2026-08-10,warehouse_name_0,char_article_757,0.0
+2026-08-10,warehouse_name_0,char_article_758,0.0
 2026-08-10,warehouse_name_0,char_article_759,0.0
 2026-08-10,warehouse_name_0,char_article_76,0.0
+2026-08-10,warehouse_name_0,char_article_760,0.0
 2026-08-10,warehouse_name_0,char_article_761,0.0
 2026-08-10,warehouse_name_0,char_article_762,0.0
+2026-08-10,warehouse_name_0,char_article_763,0.0
 2026-08-10,warehouse_name_0,char_article_764,0.0
 2026-08-10,warehouse_name_0,char_article_765,0.0
 2026-08-10,warehouse_name_0,char_article_766,1.0
@@ -18314,6 +18345,7 @@ week,warehouse_name,article,quantity
 2026-08-10,warehouse_name_0,char_article_788,0.0
 2026-08-10,warehouse_name_0,char_article_789,0.0
 2026-08-10,warehouse_name_0,char_article_79,0.0
+2026-08-10,warehouse_name_0,char_article_790,1.0
 2026-08-10,warehouse_name_0,char_article_791,0.0
 2026-08-10,warehouse_name_0,char_article_792,0.0
 2026-08-10,warehouse_name_0,char_article_793,0.0
@@ -21569,6 +21601,7 @@ week,warehouse_name,article,quantity
 2026-08-10,warehouse_name_4,char_article_121,1.0
 2026-08-10,warehouse_name_4,char_article_122,0.0
 2026-08-10,warehouse_name_4,char_article_123,0.0
+2026-08-10,warehouse_name_4,char_article_124,0.0
 2026-08-10,warehouse_name_4,char_article_125,0.0
 2026-08-10,warehouse_name_4,char_article_126,0.0
 2026-08-10,warehouse_name_4,char_article_127,1.0
@@ -21652,6 +21685,7 @@ week,warehouse_name,article,quantity
 2026-08-10,warehouse_name_4,char_article_198,1.0
 2026-08-10,warehouse_name_4,char_article_199,0.0
 2026-08-10,warehouse_name_4,char_article_2,0.0
+2026-08-10,warehouse_name_4,char_article_20,0.0
 2026-08-10,warehouse_name_4,char_article_200,0.0
 2026-08-10,warehouse_name_4,char_article_201,29.0
 2026-08-10,warehouse_name_4,char_article_202,13.0
@@ -24551,6 +24585,7 @@ week,warehouse_name,article,quantity
 2026-08-10,warehouse_name_7,char_article_650,1.0
 2026-08-10,warehouse_name_7,char_article_651,2.0
 2026-08-10,warehouse_name_7,char_article_652,1.0
+2026-08-10,warehouse_name_7,char_article_653,0.0
 2026-08-10,warehouse_name_7,char_article_654,1.0
 2026-08-10,warehouse_name_7,char_article_655,3.0
 2026-08-10,warehouse_name_7,char_article_656,0.0
@@ -26302,6 +26337,7 @@ week,warehouse_name,article,quantity
 2026-08-10,warehouse_name_9,char_article_79,0.0
 2026-08-10,warehouse_name_9,char_article_790,0.0
 2026-08-10,warehouse_name_9,char_article_791,0.0
+2026-08-10,warehouse_name_9,char_article_792,1.0
 2026-08-10,warehouse_name_9,char_article_793,0.0
 2026-08-10,warehouse_name_9,char_article_794,2.0
 2026-08-10,warehouse_name_9,char_article_795,3.0
@@ -26988,6 +27024,7 @@ week,warehouse_name,article,quantity
 2026-08-17,warehouse_name_0,char_article_689,0.0
 2026-08-17,warehouse_name_0,char_article_69,0.0
 2026-08-17,warehouse_name_0,char_article_690,0.0
+2026-08-17,warehouse_name_0,char_article_691,0.0
 2026-08-17,warehouse_name_0,char_article_692,0.0
 2026-08-17,warehouse_name_0,char_article_693,0.0
 2026-08-17,warehouse_name_0,char_article_694,0.0
@@ -27038,6 +27075,7 @@ week,warehouse_name,article,quantity
 2026-08-17,warehouse_name_0,char_article_734,0.0
 2026-08-17,warehouse_name_0,char_article_735,0.0
 2026-08-17,warehouse_name_0,char_article_736,0.0
+2026-08-17,warehouse_name_0,char_article_737,0.0
 2026-08-17,warehouse_name_0,char_article_738,0.0
 2026-08-17,warehouse_name_0,char_article_739,0.0
 2026-08-17,warehouse_name_0,char_article_74,0.0
@@ -27046,6 +27084,7 @@ week,warehouse_name,article,quantity
 2026-08-17,warehouse_name_0,char_article_742,0.0
 2026-08-17,warehouse_name_0,char_article_743,0.0
 2026-08-17,warehouse_name_0,char_article_744,0.0
+2026-08-17,warehouse_name_0,char_article_745,0.0
 2026-08-17,warehouse_name_0,char_article_746,0.0
 2026-08-17,warehouse_name_0,char_article_747,0.0
 2026-08-17,warehouse_name_0,char_article_748,0.0
@@ -27058,10 +27097,14 @@ week,warehouse_name,article,quantity
 2026-08-17,warehouse_name_0,char_article_754,0.0
 2026-08-17,warehouse_name_0,char_article_755,0.0
 2026-08-17,warehouse_name_0,char_article_756,0.0
+2026-08-17,warehouse_name_0,char_article_757,0.0
+2026-08-17,warehouse_name_0,char_article_758,0.0
 2026-08-17,warehouse_name_0,char_article_759,0.0
 2026-08-17,warehouse_name_0,char_article_76,0.0
+2026-08-17,warehouse_name_0,char_article_760,0.0
 2026-08-17,warehouse_name_0,char_article_761,0.0
 2026-08-17,warehouse_name_0,char_article_762,0.0
+2026-08-17,warehouse_name_0,char_article_763,0.0
 2026-08-17,warehouse_name_0,char_article_764,0.0
 2026-08-17,warehouse_name_0,char_article_765,0.0
 2026-08-17,warehouse_name_0,char_article_766,1.0
@@ -27091,6 +27134,7 @@ week,warehouse_name,article,quantity
 2026-08-17,warehouse_name_0,char_article_788,0.0
 2026-08-17,warehouse_name_0,char_article_789,0.0
 2026-08-17,warehouse_name_0,char_article_79,0.0
+2026-08-17,warehouse_name_0,char_article_790,1.0
 2026-08-17,warehouse_name_0,char_article_791,0.0
 2026-08-17,warehouse_name_0,char_article_792,0.0
 2026-08-17,warehouse_name_0,char_article_793,0.0
@@ -30346,6 +30390,7 @@ week,warehouse_name,article,quantity
 2026-08-17,warehouse_name_4,char_article_121,1.0
 2026-08-17,warehouse_name_4,char_article_122,0.0
 2026-08-17,warehouse_name_4,char_article_123,0.0
+2026-08-17,warehouse_name_4,char_article_124,0.0
 2026-08-17,warehouse_name_4,char_article_125,0.0
 2026-08-17,warehouse_name_4,char_article_126,0.0
 2026-08-17,warehouse_name_4,char_article_127,1.0
@@ -30429,6 +30474,7 @@ week,warehouse_name,article,quantity
 2026-08-17,warehouse_name_4,char_article_198,1.0
 2026-08-17,warehouse_name_4,char_article_199,0.0
 2026-08-17,warehouse_name_4,char_article_2,0.0
+2026-08-17,warehouse_name_4,char_article_20,0.0
 2026-08-17,warehouse_name_4,char_article_200,0.0
 2026-08-17,warehouse_name_4,char_article_201,29.0
 2026-08-17,warehouse_name_4,char_article_202,14.0
@@ -33328,6 +33374,7 @@ week,warehouse_name,article,quantity
 2026-08-17,warehouse_name_7,char_article_650,1.0
 2026-08-17,warehouse_name_7,char_article_651,2.0
 2026-08-17,warehouse_name_7,char_article_652,1.0
+2026-08-17,warehouse_name_7,char_article_653,0.0
 2026-08-17,warehouse_name_7,char_article_654,1.0
 2026-08-17,warehouse_name_7,char_article_655,3.0
 2026-08-17,warehouse_name_7,char_article_656,0.0
@@ -35079,6 +35126,7 @@ week,warehouse_name,article,quantity
 2026-08-17,warehouse_name_9,char_article_79,0.0
 2026-08-17,warehouse_name_9,char_article_790,0.0
 2026-08-17,warehouse_name_9,char_article_791,0.0
+2026-08-17,warehouse_name_9,char_article_792,1.0
 2026-08-17,warehouse_name_9,char_article_793,0.0
 2026-08-17,warehouse_name_9,char_article_794,2.0
 2026-08-17,warehouse_name_9,char_article_795,3.0
@@ -35765,6 +35813,7 @@ week,warehouse_name,article,quantity
 2026-08-24,warehouse_name_0,char_article_689,0.0
 2026-08-24,warehouse_name_0,char_article_69,0.0
 2026-08-24,warehouse_name_0,char_article_690,0.0
+2026-08-24,warehouse_name_0,char_article_691,0.0
 2026-08-24,warehouse_name_0,char_article_692,0.0
 2026-08-24,warehouse_name_0,char_article_693,0.0
 2026-08-24,warehouse_name_0,char_article_694,0.0
@@ -35815,6 +35864,7 @@ week,warehouse_name,article,quantity
 2026-08-24,warehouse_name_0,char_article_734,0.0
 2026-08-24,warehouse_name_0,char_article_735,0.0
 2026-08-24,warehouse_name_0,char_article_736,0.0
+2026-08-24,warehouse_name_0,char_article_737,0.0
 2026-08-24,warehouse_name_0,char_article_738,0.0
 2026-08-24,warehouse_name_0,char_article_739,0.0
 2026-08-24,warehouse_name_0,char_article_74,0.0
@@ -35823,6 +35873,7 @@ week,warehouse_name,article,quantity
 2026-08-24,warehouse_name_0,char_article_742,0.0
 2026-08-24,warehouse_name_0,char_article_743,0.0
 2026-08-24,warehouse_name_0,char_article_744,0.0
+2026-08-24,warehouse_name_0,char_article_745,0.0
 2026-08-24,warehouse_name_0,char_article_746,0.0
 2026-08-24,warehouse_name_0,char_article_747,0.0
 2026-08-24,warehouse_name_0,char_article_748,0.0
@@ -35835,10 +35886,14 @@ week,warehouse_name,article,quantity
 2026-08-24,warehouse_name_0,char_article_754,0.0
 2026-08-24,warehouse_name_0,char_article_755,0.0
 2026-08-24,warehouse_name_0,char_article_756,0.0
+2026-08-24,warehouse_name_0,char_article_757,0.0
+2026-08-24,warehouse_name_0,char_article_758,0.0
 2026-08-24,warehouse_name_0,char_article_759,0.0
 2026-08-24,warehouse_name_0,char_article_76,0.0
+2026-08-24,warehouse_name_0,char_article_760,0.0
 2026-08-24,warehouse_name_0,char_article_761,0.0
 2026-08-24,warehouse_name_0,char_article_762,0.0
+2026-08-24,warehouse_name_0,char_article_763,0.0
 2026-08-24,warehouse_name_0,char_article_764,0.0
 2026-08-24,warehouse_name_0,char_article_765,0.0
 2026-08-24,warehouse_name_0,char_article_766,1.0
@@ -35868,6 +35923,7 @@ week,warehouse_name,article,quantity
 2026-08-24,warehouse_name_0,char_article_788,0.0
 2026-08-24,warehouse_name_0,char_article_789,0.0
 2026-08-24,warehouse_name_0,char_article_79,0.0
+2026-08-24,warehouse_name_0,char_article_790,1.0
 2026-08-24,warehouse_name_0,char_article_791,0.0
 2026-08-24,warehouse_name_0,char_article_792,0.0
 2026-08-24,warehouse_name_0,char_article_793,0.0
@@ -39123,6 +39179,7 @@ week,warehouse_name,article,quantity
 2026-08-24,warehouse_name_4,char_article_121,1.0
 2026-08-24,warehouse_name_4,char_article_122,0.0
 2026-08-24,warehouse_name_4,char_article_123,0.0
+2026-08-24,warehouse_name_4,char_article_124,0.0
 2026-08-24,warehouse_name_4,char_article_125,0.0
 2026-08-24,warehouse_name_4,char_article_126,0.0
 2026-08-24,warehouse_name_4,char_article_127,1.0
@@ -39206,6 +39263,7 @@ week,warehouse_name,article,quantity
 2026-08-24,warehouse_name_4,char_article_198,1.0
 2026-08-24,warehouse_name_4,char_article_199,0.0
 2026-08-24,warehouse_name_4,char_article_2,0.0
+2026-08-24,warehouse_name_4,char_article_20,0.0
 2026-08-24,warehouse_name_4,char_article_200,0.0
 2026-08-24,warehouse_name_4,char_article_201,29.0
 2026-08-24,warehouse_name_4,char_article_202,13.0
@@ -42105,6 +42163,7 @@ week,warehouse_name,article,quantity
 2026-08-24,warehouse_name_7,char_article_650,1.0
 2026-08-24,warehouse_name_7,char_article_651,2.0
 2026-08-24,warehouse_name_7,char_article_652,1.0
+2026-08-24,warehouse_name_7,char_article_653,0.0
 2026-08-24,warehouse_name_7,char_article_654,1.0
 2026-08-24,warehouse_name_7,char_article_655,3.0
 2026-08-24,warehouse_name_7,char_article_656,0.0
@@ -43856,6 +43915,7 @@ week,warehouse_name,article,quantity
 2026-08-24,warehouse_name_9,char_article_79,0.0
 2026-08-24,warehouse_name_9,char_article_790,0.0
 2026-08-24,warehouse_name_9,char_article_791,0.0
+2026-08-24,warehouse_name_9,char_article_792,1.0
 2026-08-24,warehouse_name_9,char_article_793,0.0
 2026-08-24,warehouse_name_9,char_article_794,2.0
 2026-08-24,warehouse_name_9,char_article_795,3.0
@@ -44542,6 +44602,7 @@ week,warehouse_name,article,quantity
 2026-08-31,warehouse_name_0,char_article_689,0.0
 2026-08-31,warehouse_name_0,char_article_69,0.0
 2026-08-31,warehouse_name_0,char_article_690,0.0
+2026-08-31,warehouse_name_0,char_article_691,0.0
 2026-08-31,warehouse_name_0,char_article_692,0.0
 2026-08-31,warehouse_name_0,char_article_693,0.0
 2026-08-31,warehouse_name_0,char_article_694,0.0
@@ -44592,6 +44653,7 @@ week,warehouse_name,article,quantity
 2026-08-31,warehouse_name_0,char_article_734,0.0
 2026-08-31,warehouse_name_0,char_article_735,0.0
 2026-08-31,warehouse_name_0,char_article_736,0.0
+2026-08-31,warehouse_name_0,char_article_737,0.0
 2026-08-31,warehouse_name_0,char_article_738,0.0
 2026-08-31,warehouse_name_0,char_article_739,0.0
 2026-08-31,warehouse_name_0,char_article_74,0.0
@@ -44600,6 +44662,7 @@ week,warehouse_name,article,quantity
 2026-08-31,warehouse_name_0,char_article_742,0.0
 2026-08-31,warehouse_name_0,char_article_743,0.0
 2026-08-31,warehouse_name_0,char_article_744,0.0
+2026-08-31,warehouse_name_0,char_article_745,0.0
 2026-08-31,warehouse_name_0,char_article_746,0.0
 2026-08-31,warehouse_name_0,char_article_747,0.0
 2026-08-31,warehouse_name_0,char_article_748,0.0
@@ -44612,10 +44675,14 @@ week,warehouse_name,article,quantity
 2026-08-31,warehouse_name_0,char_article_754,0.0
 2026-08-31,warehouse_name_0,char_article_755,0.0
 2026-08-31,warehouse_name_0,char_article_756,0.0
+2026-08-31,warehouse_name_0,char_article_757,0.0
+2026-08-31,warehouse_name_0,char_article_758,0.0
 2026-08-31,warehouse_name_0,char_article_759,0.0
 2026-08-31,warehouse_name_0,char_article_76,0.0
+2026-08-31,warehouse_name_0,char_article_760,0.0
 2026-08-31,warehouse_name_0,char_article_761,0.0
 2026-08-31,warehouse_name_0,char_article_762,0.0
+2026-08-31,warehouse_name_0,char_article_763,0.0
 2026-08-31,warehouse_name_0,char_article_764,0.0
 2026-08-31,warehouse_name_0,char_article_765,0.0
 2026-08-31,warehouse_name_0,char_article_766,1.0
@@ -44645,6 +44712,7 @@ week,warehouse_name,article,quantity
 2026-08-31,warehouse_name_0,char_article_788,0.0
 2026-08-31,warehouse_name_0,char_article_789,0.0
 2026-08-31,warehouse_name_0,char_article_79,0.0
+2026-08-31,warehouse_name_0,char_article_790,1.0
 2026-08-31,warehouse_name_0,char_article_791,0.0
 2026-08-31,warehouse_name_0,char_article_792,0.0
 2026-08-31,warehouse_name_0,char_article_793,0.0
@@ -47900,6 +47968,7 @@ week,warehouse_name,article,quantity
 2026-08-31,warehouse_name_4,char_article_121,1.0
 2026-08-31,warehouse_name_4,char_article_122,0.0
 2026-08-31,warehouse_name_4,char_article_123,0.0
+2026-08-31,warehouse_name_4,char_article_124,0.0
 2026-08-31,warehouse_name_4,char_article_125,0.0
 2026-08-31,warehouse_name_4,char_article_126,0.0
 2026-08-31,warehouse_name_4,char_article_127,1.0
@@ -47983,6 +48052,7 @@ week,warehouse_name,article,quantity
 2026-08-31,warehouse_name_4,char_article_198,1.0
 2026-08-31,warehouse_name_4,char_article_199,0.0
 2026-08-31,warehouse_name_4,char_article_2,0.0
+2026-08-31,warehouse_name_4,char_article_20,0.0
 2026-08-31,warehouse_name_4,char_article_200,0.0
 2026-08-31,warehouse_name_4,char_article_201,29.0
 2026-08-31,warehouse_name_4,char_article_202,14.0
@@ -50882,6 +50952,7 @@ week,warehouse_name,article,quantity
 2026-08-31,warehouse_name_7,char_article_650,1.0
 2026-08-31,warehouse_name_7,char_article_651,2.0
 2026-08-31,warehouse_name_7,char_article_652,1.0
+2026-08-31,warehouse_name_7,char_article_653,0.0
 2026-08-31,warehouse_name_7,char_article_654,1.0
 2026-08-31,warehouse_name_7,char_article_655,3.0
 2026-08-31,warehouse_name_7,char_article_656,0.0
@@ -52633,6 +52704,7 @@ week,warehouse_name,article,quantity
 2026-08-31,warehouse_name_9,char_article_79,0.0
 2026-08-31,warehouse_name_9,char_article_790,0.0
 2026-08-31,warehouse_name_9,char_article_791,0.0
+2026-08-31,warehouse_name_9,char_article_792,1.0
 2026-08-31,warehouse_name_9,char_article_793,0.0
 2026-08-31,warehouse_name_9,char_article_794,2.0
 2026-08-31,warehouse_name_9,char_article_795,3.0
@@ -53319,6 +53391,7 @@ week,warehouse_name,article,quantity
 2026-09-07,warehouse_name_0,char_article_689,0.0
 2026-09-07,warehouse_name_0,char_article_69,0.0
 2026-09-07,warehouse_name_0,char_article_690,0.0
+2026-09-07,warehouse_name_0,char_article_691,0.0
 2026-09-07,warehouse_name_0,char_article_692,0.0
 2026-09-07,warehouse_name_0,char_article_693,0.0
 2026-09-07,warehouse_name_0,char_article_694,0.0
@@ -53369,6 +53442,7 @@ week,warehouse_name,article,quantity
 2026-09-07,warehouse_name_0,char_article_734,0.0
 2026-09-07,warehouse_name_0,char_article_735,0.0
 2026-09-07,warehouse_name_0,char_article_736,0.0
+2026-09-07,warehouse_name_0,char_article_737,0.0
 2026-09-07,warehouse_name_0,char_article_738,0.0
 2026-09-07,warehouse_name_0,char_article_739,0.0
 2026-09-07,warehouse_name_0,char_article_74,0.0
@@ -53377,6 +53451,7 @@ week,warehouse_name,article,quantity
 2026-09-07,warehouse_name_0,char_article_742,0.0
 2026-09-07,warehouse_name_0,char_article_743,0.0
 2026-09-07,warehouse_name_0,char_article_744,0.0
+2026-09-07,warehouse_name_0,char_article_745,0.0
 2026-09-07,warehouse_name_0,char_article_746,0.0
 2026-09-07,warehouse_name_0,char_article_747,0.0
 2026-09-07,warehouse_name_0,char_article_748,0.0
@@ -53389,10 +53464,14 @@ week,warehouse_name,article,quantity
 2026-09-07,warehouse_name_0,char_article_754,0.0
 2026-09-07,warehouse_name_0,char_article_755,0.0
 2026-09-07,warehouse_name_0,char_article_756,0.0
+2026-09-07,warehouse_name_0,char_article_757,0.0
+2026-09-07,warehouse_name_0,char_article_758,0.0
 2026-09-07,warehouse_name_0,char_article_759,0.0
 2026-09-07,warehouse_name_0,char_article_76,0.0
+2026-09-07,warehouse_name_0,char_article_760,0.0
 2026-09-07,warehouse_name_0,char_article_761,0.0
 2026-09-07,warehouse_name_0,char_article_762,0.0
+2026-09-07,warehouse_name_0,char_article_763,0.0
 2026-09-07,warehouse_name_0,char_article_764,0.0
 2026-09-07,warehouse_name_0,char_article_765,0.0
 2026-09-07,warehouse_name_0,char_article_766,1.0
@@ -53422,6 +53501,7 @@ week,warehouse_name,article,quantity
 2026-09-07,warehouse_name_0,char_article_788,0.0
 2026-09-07,warehouse_name_0,char_article_789,0.0
 2026-09-07,warehouse_name_0,char_article_79,0.0
+2026-09-07,warehouse_name_0,char_article_790,1.0
 2026-09-07,warehouse_name_0,char_article_791,0.0
 2026-09-07,warehouse_name_0,char_article_792,0.0
 2026-09-07,warehouse_name_0,char_article_793,0.0
@@ -56677,6 +56757,7 @@ week,warehouse_name,article,quantity
 2026-09-07,warehouse_name_4,char_article_121,1.0
 2026-09-07,warehouse_name_4,char_article_122,0.0
 2026-09-07,warehouse_name_4,char_article_123,0.0
+2026-09-07,warehouse_name_4,char_article_124,0.0
 2026-09-07,warehouse_name_4,char_article_125,0.0
 2026-09-07,warehouse_name_4,char_article_126,0.0
 2026-09-07,warehouse_name_4,char_article_127,1.0
@@ -56760,6 +56841,7 @@ week,warehouse_name,article,quantity
 2026-09-07,warehouse_name_4,char_article_198,1.0
 2026-09-07,warehouse_name_4,char_article_199,0.0
 2026-09-07,warehouse_name_4,char_article_2,0.0
+2026-09-07,warehouse_name_4,char_article_20,0.0
 2026-09-07,warehouse_name_4,char_article_200,0.0
 2026-09-07,warehouse_name_4,char_article_201,29.0
 2026-09-07,warehouse_name_4,char_article_202,13.0
@@ -59659,6 +59741,7 @@ week,warehouse_name,article,quantity
 2026-09-07,warehouse_name_7,char_article_650,1.0
 2026-09-07,warehouse_name_7,char_article_651,2.0
 2026-09-07,warehouse_name_7,char_article_652,1.0
+2026-09-07,warehouse_name_7,char_article_653,0.0
 2026-09-07,warehouse_name_7,char_article_654,1.0
 2026-09-07,warehouse_name_7,char_article_655,3.0
 2026-09-07,warehouse_name_7,char_article_656,0.0
@@ -61410,6 +61493,7 @@ week,warehouse_name,article,quantity
 2026-09-07,warehouse_name_9,char_article_79,0.0
 2026-09-07,warehouse_name_9,char_article_790,0.0
 2026-09-07,warehouse_name_9,char_article_791,0.0
+2026-09-07,warehouse_name_9,char_article_792,1.0
 2026-09-07,warehouse_name_9,char_article_793,0.0
 2026-09-07,warehouse_name_9,char_article_794,2.0
 2026-09-07,warehouse_name_9,char_article_795,3.0
@@ -62096,6 +62180,7 @@ week,warehouse_name,article,quantity
 2026-09-14,warehouse_name_0,char_article_689,0.0
 2026-09-14,warehouse_name_0,char_article_69,0.0
 2026-09-14,warehouse_name_0,char_article_690,0.0
+2026-09-14,warehouse_name_0,char_article_691,0.0
 2026-09-14,warehouse_name_0,char_article_692,0.0
 2026-09-14,warehouse_name_0,char_article_693,0.0
 2026-09-14,warehouse_name_0,char_article_694,0.0
@@ -62146,6 +62231,7 @@ week,warehouse_name,article,quantity
 2026-09-14,warehouse_name_0,char_article_734,0.0
 2026-09-14,warehouse_name_0,char_article_735,0.0
 2026-09-14,warehouse_name_0,char_article_736,0.0
+2026-09-14,warehouse_name_0,char_article_737,0.0
 2026-09-14,warehouse_name_0,char_article_738,0.0
 2026-09-14,warehouse_name_0,char_article_739,0.0
 2026-09-14,warehouse_name_0,char_article_74,0.0
@@ -62154,6 +62240,7 @@ week,warehouse_name,article,quantity
 2026-09-14,warehouse_name_0,char_article_742,0.0
 2026-09-14,warehouse_name_0,char_article_743,0.0
 2026-09-14,warehouse_name_0,char_article_744,0.0
+2026-09-14,warehouse_name_0,char_article_745,0.0
 2026-09-14,warehouse_name_0,char_article_746,0.0
 2026-09-14,warehouse_name_0,char_article_747,0.0
 2026-09-14,warehouse_name_0,char_article_748,0.0
@@ -62166,10 +62253,14 @@ week,warehouse_name,article,quantity
 2026-09-14,warehouse_name_0,char_article_754,0.0
 2026-09-14,warehouse_name_0,char_article_755,0.0
 2026-09-14,warehouse_name_0,char_article_756,0.0
+2026-09-14,warehouse_name_0,char_article_757,0.0
+2026-09-14,warehouse_name_0,char_article_758,0.0
 2026-09-14,warehouse_name_0,char_article_759,0.0
 2026-09-14,warehouse_name_0,char_article_76,0.0
+2026-09-14,warehouse_name_0,char_article_760,0.0
 2026-09-14,warehouse_name_0,char_article_761,0.0
 2026-09-14,warehouse_name_0,char_article_762,0.0
+2026-09-14,warehouse_name_0,char_article_763,0.0
 2026-09-14,warehouse_name_0,char_article_764,0.0
 2026-09-14,warehouse_name_0,char_article_765,0.0
 2026-09-14,warehouse_name_0,char_article_766,1.0
@@ -62199,6 +62290,7 @@ week,warehouse_name,article,quantity
 2026-09-14,warehouse_name_0,char_article_788,0.0
 2026-09-14,warehouse_name_0,char_article_789,0.0
 2026-09-14,warehouse_name_0,char_article_79,0.0
+2026-09-14,warehouse_name_0,char_article_790,1.0
 2026-09-14,warehouse_name_0,char_article_791,0.0
 2026-09-14,warehouse_name_0,char_article_792,0.0
 2026-09-14,warehouse_name_0,char_article_793,0.0
@@ -65454,6 +65546,7 @@ week,warehouse_name,article,quantity
 2026-09-14,warehouse_name_4,char_article_121,1.0
 2026-09-14,warehouse_name_4,char_article_122,0.0
 2026-09-14,warehouse_name_4,char_article_123,0.0
+2026-09-14,warehouse_name_4,char_article_124,0.0
 2026-09-14,warehouse_name_4,char_article_125,0.0
 2026-09-14,warehouse_name_4,char_article_126,0.0
 2026-09-14,warehouse_name_4,char_article_127,1.0
@@ -65537,6 +65630,7 @@ week,warehouse_name,article,quantity
 2026-09-14,warehouse_name_4,char_article_198,1.0
 2026-09-14,warehouse_name_4,char_article_199,0.0
 2026-09-14,warehouse_name_4,char_article_2,0.0
+2026-09-14,warehouse_name_4,char_article_20,0.0
 2026-09-14,warehouse_name_4,char_article_200,0.0
 2026-09-14,warehouse_name_4,char_article_201,29.0
 2026-09-14,warehouse_name_4,char_article_202,13.0
@@ -68436,6 +68530,7 @@ week,warehouse_name,article,quantity
 2026-09-14,warehouse_name_7,char_article_650,1.0
 2026-09-14,warehouse_name_7,char_article_651,2.0
 2026-09-14,warehouse_name_7,char_article_652,1.0
+2026-09-14,warehouse_name_7,char_article_653,0.0
 2026-09-14,warehouse_name_7,char_article_654,1.0
 2026-09-14,warehouse_name_7,char_article_655,3.0
 2026-09-14,warehouse_name_7,char_article_656,0.0
@@ -70187,6 +70282,7 @@ week,warehouse_name,article,quantity
 2026-09-14,warehouse_name_9,char_article_79,0.0
 2026-09-14,warehouse_name_9,char_article_790,0.0
 2026-09-14,warehouse_name_9,char_article_791,0.0
+2026-09-14,warehouse_name_9,char_article_792,1.0
 2026-09-14,warehouse_name_9,char_article_793,0.0
 2026-09-14,warehouse_name_9,char_article_794,2.0
 2026-09-14,warehouse_name_9,char_article_795,3.0
@@ -70873,6 +70969,7 @@ week,warehouse_name,article,quantity
 2026-09-21,warehouse_name_0,char_article_689,0.0
 2026-09-21,warehouse_name_0,char_article_69,0.0
 2026-09-21,warehouse_name_0,char_article_690,0.0
+2026-09-21,warehouse_name_0,char_article_691,0.0
 2026-09-21,warehouse_name_0,char_article_692,0.0
 2026-09-21,warehouse_name_0,char_article_693,0.0
 2026-09-21,warehouse_name_0,char_article_694,0.0
@@ -70923,6 +71020,7 @@ week,warehouse_name,article,quantity
 2026-09-21,warehouse_name_0,char_article_734,0.0
 2026-09-21,warehouse_name_0,char_article_735,0.0
 2026-09-21,warehouse_name_0,char_article_736,0.0
+2026-09-21,warehouse_name_0,char_article_737,0.0
 2026-09-21,warehouse_name_0,char_article_738,0.0
 2026-09-21,warehouse_name_0,char_article_739,0.0
 2026-09-21,warehouse_name_0,char_article_74,0.0
@@ -70931,6 +71029,7 @@ week,warehouse_name,article,quantity
 2026-09-21,warehouse_name_0,char_article_742,0.0
 2026-09-21,warehouse_name_0,char_article_743,0.0
 2026-09-21,warehouse_name_0,char_article_744,0.0
+2026-09-21,warehouse_name_0,char_article_745,0.0
 2026-09-21,warehouse_name_0,char_article_746,0.0
 2026-09-21,warehouse_name_0,char_article_747,0.0
 2026-09-21,warehouse_name_0,char_article_748,0.0
@@ -70943,10 +71042,14 @@ week,warehouse_name,article,quantity
 2026-09-21,warehouse_name_0,char_article_754,0.0
 2026-09-21,warehouse_name_0,char_article_755,0.0
 2026-09-21,warehouse_name_0,char_article_756,0.0
+2026-09-21,warehouse_name_0,char_article_757,0.0
+2026-09-21,warehouse_name_0,char_article_758,0.0
 2026-09-21,warehouse_name_0,char_article_759,0.0
 2026-09-21,warehouse_name_0,char_article_76,0.0
+2026-09-21,warehouse_name_0,char_article_760,0.0
 2026-09-21,warehouse_name_0,char_article_761,0.0
 2026-09-21,warehouse_name_0,char_article_762,0.0
+2026-09-21,warehouse_name_0,char_article_763,0.0
 2026-09-21,warehouse_name_0,char_article_764,0.0
 2026-09-21,warehouse_name_0,char_article_765,0.0
 2026-09-21,warehouse_name_0,char_article_766,1.0
@@ -70976,6 +71079,7 @@ week,warehouse_name,article,quantity
 2026-09-21,warehouse_name_0,char_article_788,0.0
 2026-09-21,warehouse_name_0,char_article_789,0.0
 2026-09-21,warehouse_name_0,char_article_79,0.0
+2026-09-21,warehouse_name_0,char_article_790,1.0
 2026-09-21,warehouse_name_0,char_article_791,0.0
 2026-09-21,warehouse_name_0,char_article_792,0.0
 2026-09-21,warehouse_name_0,char_article_793,0.0
@@ -74231,6 +74335,7 @@ week,warehouse_name,article,quantity
 2026-09-21,warehouse_name_4,char_article_121,1.0
 2026-09-21,warehouse_name_4,char_article_122,0.0
 2026-09-21,warehouse_name_4,char_article_123,0.0
+2026-09-21,warehouse_name_4,char_article_124,0.0
 2026-09-21,warehouse_name_4,char_article_125,0.0
 2026-09-21,warehouse_name_4,char_article_126,0.0
 2026-09-21,warehouse_name_4,char_article_127,0.0
@@ -74314,6 +74419,7 @@ week,warehouse_name,article,quantity
 2026-09-21,warehouse_name_4,char_article_198,1.0
 2026-09-21,warehouse_name_4,char_article_199,0.0
 2026-09-21,warehouse_name_4,char_article_2,0.0
+2026-09-21,warehouse_name_4,char_article_20,0.0
 2026-09-21,warehouse_name_4,char_article_200,0.0
 2026-09-21,warehouse_name_4,char_article_201,30.0
 2026-09-21,warehouse_name_4,char_article_202,13.0
@@ -77213,6 +77319,7 @@ week,warehouse_name,article,quantity
 2026-09-21,warehouse_name_7,char_article_650,1.0
 2026-09-21,warehouse_name_7,char_article_651,2.0
 2026-09-21,warehouse_name_7,char_article_652,1.0
+2026-09-21,warehouse_name_7,char_article_653,0.0
 2026-09-21,warehouse_name_7,char_article_654,0.0
 2026-09-21,warehouse_name_7,char_article_655,3.0
 2026-09-21,warehouse_name_7,char_article_656,0.0
@@ -78964,6 +79071,7 @@ week,warehouse_name,article,quantity
 2026-09-21,warehouse_name_9,char_article_79,0.0
 2026-09-21,warehouse_name_9,char_article_790,0.0
 2026-09-21,warehouse_name_9,char_article_791,0.0
+2026-09-21,warehouse_name_9,char_article_792,1.0
 2026-09-21,warehouse_name_9,char_article_793,0.0
 2026-09-21,warehouse_name_9,char_article_794,2.0
 2026-09-21,warehouse_name_9,char_article_795,3.0
