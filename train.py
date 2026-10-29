@@ -23,6 +23,8 @@ from app.features import (
 from app.metrics import compute_all_metrics, format_metrics
 from app.models import available_model_types, get_model_class, transform_target
 from app.temporal import last_complete_sunday
+from app.csv_io import read_csv_checked
+from app.pipeline import prepare_panel, feature_frame
 
 COMPETITION_CUTOFF = pd.Timestamp("2026-07-26")
 
@@ -46,7 +48,7 @@ def holdout_cutoffs(panel, horizon=9):
     return selection, test
 
 
-def build_dataset(panel, cutoffs, horizon=9, lookback_days=180, stock_policy="window"):
+def build_dataset(panel, cutoffs, horizon=9, lookback_days=180, stock_policy="window", model_type=None, model_params=None):
     """Use only horizons with seven available target days; never fake missing labels."""
     frames = []
     for i, cutoff in enumerate(cutoffs, 1):
@@ -54,7 +56,8 @@ def build_dataset(panel, cutoffs, horizon=9, lookback_days=180, stock_policy="wi
                     if forecast_end(cutoff, h) <= panel.date.max()]
         if not complete:
             continue
-        frame = make_training_frame(panel, cutoff, complete, lookback_days, stock_policy)
+        frame = feature_frame(panel, cutoff, model_type, training=True, horizons=complete,
+                              lookback_days=lookback_days, stock_policy=stock_policy, model_params=model_params)
         frame["origin"] = pd.Timestamp(cutoff)
         frames.append(frame)
         print(f"  [{i}/{len(cutoffs)}] {pd.Timestamp(cutoff).date()}: {len(frame):,} rows, {len(complete)} complete weeks", flush=True)
@@ -99,7 +102,11 @@ def save_artifact(model, out_dir, training_end, selection_end, rows, cutoffs,
             "target_transform": model.target_transform}
     if model.name == "research":
         from app.enhancements import enhanced_spec, feature_columns
-        spec.update(schema_version=4, feature_columns=feature_columns(), enhancements=enhanced_spec())
+        spec.update(schema_version=6 if model.recipe.get('segments') else 4,
+                    feature_columns=feature_columns(), enhancements=enhanced_spec())
+        if model.params.get('expert_specs'):
+            from app.sequence_features import sequence_spec, combined_feature_columns
+            spec.update(schema_version=7, feature_columns=combined_feature_columns(), metric_experts=sequence_spec())
     if model.name == "ideas":
         from app.enhancements import enhanced_spec, feature_columns
         from app.ideas_features import GROUPS, ideas_columns, ideas_spec
@@ -123,7 +130,7 @@ def save_artifact(model, out_dir, training_end, selection_end, rows, cutoffs,
         "thread_count": int(model.params.get("threads", 8)),
         "n_cutoffs": int(cutoffs), "train_rows": int(rows), "model_params": model.params,
         "trained_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "coverage_policy": "explicit_reference_or_observed_input_pairs",
+        "coverage_policy": "requested_pairs_or_full_product_with_observed_only_group_features",
         "model_artifact_sha256": hashlib.sha256(model_path.read_bytes()).hexdigest(),
         "preprocessor_sha256": hashlib.sha256(preprocessor.read_bytes()).hexdigest(),
         "validation": validation,
@@ -131,7 +138,9 @@ def save_artifact(model, out_dir, training_end, selection_end, rows, cutoffs,
     if calibration:
         config["calibration"] = calibration
     if model.name == "research":
-        config.update(preprocessing_version=4,feature_columns=spec["feature_columns"],enhancements=spec["enhancements"])
+        config.update(preprocessing_version=spec['schema_version'],feature_columns=spec["feature_columns"],enhancements=spec["enhancements"])
+        if model.params.get('expert_specs'):
+            config['metric_experts'] = spec['metric_experts']
     if model.name == "ideas":
         config.update(preprocessing_version=5,feature_columns=spec['feature_columns'],
                       enhancements=spec['enhancements'],ideas=spec['ideas'])
@@ -163,6 +172,8 @@ def parse_args(argv=None):
     ap.add_argument("--calibration-file", type=Path)
     ap.add_argument("--overwrite", action="store_true")
     args = ap.parse_args(argv)
+    if args.model_type in ("research", "ideas") and args.seed != 42:
+        ap.error("research/ideas currently use a fixed seed of 42; choose --seed 42")
     if args.horizon != 9:
         ap.error("The submission horizon is exactly nine weeks")
     if args.lookback < 90 or args.cutoff_step <= 0 or args.cutoff_step % 7:
@@ -184,6 +195,10 @@ def parse_args(argv=None):
         params = {"classifier": {"n_estimators": args.estimators}, "regressor": {"n_estimators": args.estimators}}
     elif args.model_type == "catboost":
         params = {"iterations": args.estimators}
+    elif args.model_type in ("research", "ideas"):
+        params = {"estimators": args.estimators}
+        if args.model_type == "ideas":
+            params.update(specs=[{"kind": "blend", "groups": []}], weights=[1.0])
     else:
         params = {"n_estimators": args.estimators}
     params.update(supplied)
@@ -196,10 +211,10 @@ def main(argv=None):
     if (args.out_dir / "config.json").exists() and not args.overwrite:
         raise FileExistsError("Artifact exists; choose another --out-dir or pass --overwrite")
     started = time.perf_counter()
-    sales = pd.read_csv(args.sales, parse_dates=["date"])
-    stock = pd.read_csv(args.stock, parse_dates=["date"])
+    sales = read_csv_checked(args.sales, parse_dates=["date"])
+    stock = read_csv_checked(args.stock, parse_dates=["date"])
     sales, stock = truncate_history(sales, stock, args.history_cutoff)
-    panel = build_panel(sales, stock)
+    panel = prepare_panel(sales, stock, args.model_type, args.model_params)
     del sales, stock
     gc.collect()
     selection, test = holdout_cutoffs(panel, args.horizon)
@@ -210,13 +225,14 @@ def main(argv=None):
     if not eligible:
         raise ValueError("Not enough data for independent train/selection/test windows")
     print(f"Weekly selection origin {selection.date()}, confirmation origin {test.date()}", flush=True)
-    frames = build_dataset(panel, eligible, args.horizon, args.lookback)
+    frames = build_dataset(panel, eligible, args.horizon, args.lookback, model_type=args.model_type, model_params=args.model_params)
     train = pd.concat(frames, ignore_index=True)
     del frames
     initial_rows = len(train)
     if (train.week + pd.Timedelta(days=6)).max() > selection:
         raise RuntimeError("Training targets overlap selection window")
-    valid = make_training_frame(panel, selection, range(1, args.horizon + 1), args.lookback)
+    valid = feature_frame(panel, selection, args.model_type, training=True,
+                          horizons=range(1, args.horizon + 1), lookback_days=args.lookback, model_params=args.model_params)
     model = get_model_class(args.model_type)(args.model_params)
     model.fit(train, transform_target(train.target.to_numpy(float), model.target_transform),
               valid, transform_target(valid.target.to_numpy(float), model.target_transform),
@@ -224,7 +240,8 @@ def main(argv=None):
     iterations = model.selected_iterations
     del train, valid
     gc.collect()
-    validation_frame = make_training_frame(panel, test, range(1, args.horizon + 1), args.lookback)
+    validation_frame = feature_frame(panel, test, args.model_type, training=True,
+                                     horizons=range(1, args.horizon + 1), lookback_days=args.lookback, model_params=args.model_params)
     calibration = None
     calibration_record = None
     if args.calibration_file:
@@ -251,7 +268,7 @@ def main(argv=None):
     final_rows = initial_rows
     training_end = selection
     if args.refit:
-        frames = build_dataset(panel, refit_cutoffs, args.horizon, args.lookback)
+        frames = build_dataset(panel, refit_cutoffs, args.horizon, args.lookback, model_type=args.model_type, model_params=args.model_params)
         refit = pd.concat(frames, ignore_index=True)
         del frames
         final_rows = len(refit)

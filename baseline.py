@@ -12,6 +12,7 @@ import pandas as pd
 from app.features import KEY, HORIZON, build_panel, forecast_end, next_week_start, truncate_history
 from app.metrics import compute_all_metrics
 from app.temporal import last_complete_sunday
+from app.csv_io import read_csv_checked
 
 METHODS = ("zero", "last_week", "mean4", "mean8", "mean13")
 
@@ -75,7 +76,7 @@ def main(argv=None):
     args = ap.parse_args(argv)
     if pd.Timestamp(args.history_cutoff) > pd.Timestamp("2026-07-26"):
         ap.error("Competition history must end no later than 2026-07-26")
-    sales, stock = truncate_history(pd.read_csv(args.sales, parse_dates=["date"]), pd.read_csv(args.stock, parse_dates=["date"]), args.history_cutoff)
+    sales, stock = truncate_history(read_csv_checked(args.sales, parse_dates=["date"]), read_csv_checked(args.stock, parse_dates=["date"]), args.history_cutoff)
     panel = build_panel(sales, stock)
     report = {}
     for origin in args.origins:

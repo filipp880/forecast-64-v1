@@ -13,6 +13,7 @@ import json
 import pickle
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -29,6 +30,14 @@ from train import make_cutoffs,save_artifact
 MEMBERS=['base','calendar','dynamics','monetary','all','poisson','tweedie','mae','quantile','catboost','grouped']
 NAMES=['smape','wape','rmse','bias','rmsle']
 WEIGHTS=np.array([.5,.2,.15,.1,.05])
+GUARDRAILS = {
+    'mean_weighted_ratio_max': .995,
+    'mean_smape_ratio_max': 1.,
+    'mean_other_metric_ratio_max': 1.01,
+    'per_origin_smape_ratio_max': 1.03,
+    'per_origin_other_metric_ratio_max': 1.05,
+    'minimum_improved_metrics': 3,
+}
 
 
 def sha(path):
@@ -40,10 +49,99 @@ def sha(path):
 
 def write(path,obj):
     path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
-    path.write_text(json.dumps(obj,ensure_ascii=False,indent=2),encoding='utf-8')
+    temporary = path.with_name(path.name + '.tmp')
+    temporary.write_text(json.dumps(obj,ensure_ascii=False,indent=2),encoding='utf-8')
+    temporary.replace(path)
 
 
 def read(path):return json.loads(Path(path).read_text(encoding='utf-8'))
+
+
+def freeze_record(path, obj):
+    """Commit a stage once; a partial or changed record never silently resumes."""
+    path = Path(path)
+    digest = path.with_suffix('.sha256')
+    if path.exists() or digest.exists():
+        raise FileExistsError('Frozen stage already exists: ' + str(path))
+    write(path, obj)
+    temporary = digest.with_name(digest.name + '.tmp')
+    temporary.write_text(sha(path) + '\n', encoding='ascii')
+    temporary.replace(digest)
+
+
+def frozen_record(path):
+    path = Path(path)
+    digest = path.with_suffix('.sha256')
+    if not digest.exists() or sha(path) != digest.read_text(encoding='ascii').strip():
+        raise ValueError('Frozen stage changed or incomplete: ' + str(path))
+    return read(path)
+
+
+def recipe_members(recipe):
+    from app.models.research_model import recipe_member_names
+    return recipe_member_names(recipe)
+
+
+def freeze_champion(out):
+    """Snapshot the comparator recipe, never use its final weights for scoring."""
+    directory = ROOT / 'model'
+    config = read(directory / 'config.json')
+    if config.get('model_type') != 'research':
+        raise ValueError('This runner requires a research champion recipe')
+    recipe = config['model_params']['recipe']
+    if not recipe_members(recipe) <= set(MEMBERS):
+        raise ValueError('Unsupported champion member')
+    artifacts = {}
+    for filename, field in ((config['model_file'], 'model_artifact_sha256'),
+                            (config['preprocessor_file'], 'preprocessor_sha256')):
+        path = directory / filename
+        if sha(path) != config[field]:
+            raise ValueError('Champion artifact changed: ' + filename)
+        artifacts[path.relative_to(ROOT).as_posix()] = sha(path)
+    artifacts['model/config.json'] = sha(directory / 'config.json')
+    write(out / 'champion.config.json', config)
+    return dict(recipe=recipe, config_snapshot_sha256=sha(out / 'champion.config.json'),
+                artifact_hashes=artifacts,
+                evaluation='past_only_refit_of_recipe_at_each_origin_not_final_weights')
+
+
+def memory_report():
+    """RSS exists on Linux too; distinguish a platform peak from current RSS."""
+    memory = psutil.Process().memory_info()
+    if hasattr(memory, 'peak_wset'):
+        return dict(process_memory_gib=memory.peak_wset / 2**30, memory_kind='peak_working_set')
+    return dict(process_memory_gib=memory.rss / 2**30, memory_kind='current_rss')
+
+
+def metric_ratio(value, baseline):
+    if not np.isfinite([value, baseline]).all() or min(value, baseline) < 0:
+        raise ValueError('Metrics must be finite and nonnegative')
+    # No artificial improvement when champion and candidate are both perfect.
+    return 1. if value == baseline == 0 else float(value / max(baseline, 1e-12))
+
+
+def assess_candidate(candidates, champions, guardrails=None):
+    """Apply the same frozen five-metric limits to development and confirmation."""
+    guard = GUARDRAILS if guardrails is None else guardrails
+    if not candidates or set(candidates) != set(champions):
+        raise ValueError('Candidate and champion origins must match')
+    per_origin = {o: {k: metric_ratio(candidates[o][k], champions[o][k]) for k in NAMES}
+                  for o in candidates}
+    means = {k: float(np.mean([v[k] for v in per_origin.values()])) for k in NAMES}
+    scores = [float(sum(w * values[k] for w, k in zip(WEIGHTS, NAMES)))
+              for values in per_origin.values()]
+    improved = sum(v < 1 for v in means.values())
+    eligible = (
+        np.mean(scores) <= guard['mean_weighted_ratio_max']
+        and means['smape'] <= guard['mean_smape_ratio_max']
+        and all(means[k] <= guard['mean_other_metric_ratio_max'] for k in NAMES if k != 'smape')
+        and all(v['smape'] <= guard['per_origin_smape_ratio_max'] for v in per_origin.values())
+        and all(v[k] <= guard['per_origin_other_metric_ratio_max']
+                for v in per_origin.values() for k in NAMES if k != 'smape')
+        and improved >= guard['minimum_improved_metrics'])
+    return dict(mean_ratio=float(np.mean(scores)), per_origin_ratio=scores,
+                per_origin_metric_ratios=per_origin, metric_ratios=means,
+                improved_metrics=improved, eligible=bool(eligible))
 
 
 def candidate_grid():
@@ -86,6 +184,16 @@ def verify_protocol(out):
     if actual!=protocol['source_hashes']:raise ValueError('Frozen ML sources changed; use a new run directory')
     for name,h in protocol['input_hashes'].items():
         if sha(ROOT/name)!=h:raise ValueError('Frozen input changed: '+name)
+    if protocol.get('research_version', 1) >= 2:
+        champion = protocol['champion']
+        if sha(out / 'champion.config.json') != champion['config_snapshot_sha256']:
+            raise ValueError('Frozen champion snapshot changed')
+        snapshot = read(out / 'champion.config.json')
+        if snapshot['model_params']['recipe'] != champion['recipe']:
+            raise ValueError('Frozen champion recipe changed')
+        for name, digest in champion['artifact_hashes'].items():
+            if sha(ROOT / name) != digest:
+                raise ValueError('Frozen champion artifact changed: ' + name)
     return protocol
 
 
@@ -93,22 +201,27 @@ def initialize(out):
     if (out/'protocol.json').exists():return verify_protocol(out)
     if out.exists() and any(out.iterdir()):raise FileExistsError('Choose an empty research directory')
     out.mkdir(parents=True,exist_ok=True)
-    write(out/'candidate_grid.json',candidate_grid())
-    protocol=dict(research_version=1,created_on='2026-10-28',history_cutoff='2026-07-26',
+    champion = freeze_champion(out)
+    grid = candidate_grid()
+    champion_key = hashlib.sha256(json.dumps(champion['recipe'],sort_keys=True).encode()).hexdigest()[:12]
+    grid[champion_key] = champion['recipe']
+    write(out/'candidate_grid.json',grid)
+    protocol=dict(research_version=2,created_on=datetime.now(timezone.utc).isoformat(timespec='seconds'),history_cutoff='2026-07-26',
                   development_origins=['2025-10-19','2026-01-18','2026-03-22'],confirmation_origin='2026-05-24',
                   final_training_end='2026-07-26',granularity='week',forecast_weeks=9,
                   prior_history_inspected=True,confirmation_status='historical_out_of_sample_previously_inspected_period',
-                  selection_rule='equal-origin mean weighted ratio to refitted rounded base; mean<=0.995, mean SMAPE ratio<=1.01, >=3/5 mean metrics improve; each-origin SMAPE ratio<=1.05',
-                  confirmation_rule='one frozen candidate only; local ratio<=0.995, SMAPE<=base*1.01, >=3/5 metrics improve; otherwise retain original production',
+                  selection_rule='equal-origin five-metric ratios to past-only refitted frozen champion; frozen per-metric guardrails',
+                  confirmation_rule='one frozen recipe only; same guardrails against refitted champion; otherwise retain original production',
                   calendar_hypothesis='federal only; anonymous dates/regions unconfirmed; publication-asof transfers',
                   official_pairs_available=False,seed=42,threads=6,estimators=600,max_cutoffs=16,early_stopping_rounds=60,
                   members=MEMBERS,enhancements=enhanced_spec(),
+                  champion=champion, champion_grid_key=champion_key, guardrails=dict(GUARDRAILS),
                   candidate_grid_sha256=sha(out/'candidate_grid.json'),
                   input_hashes={f'data/{n}_dataset_hakaton_train.csv':sha(ROOT/f'data/{n}_dataset_hakaton_train.csv') for n in ['sales','stock']},
                   source_hashes={p.relative_to(ROOT).as_posix():sha(p) for p in source_paths()})
     write(out/'protocol.json',protocol)
     (out/'protocol.sha256').write_text(sha(out/'protocol.json')+'\n')
-    print('PROTOCOL FROZEN',len(candidate_grid()),'recipes',flush=True)
+    print('PROTOCOL FROZEN',len(grid),'recipes',flush=True)
     return protocol
 
 
@@ -136,7 +249,7 @@ def fast_metrics(y,p,codes):
                 volume_bias=float((p.sum()/total-1)*100) if total else 0.,zero_share=float(np.mean(p==0)))
 
 
-def ratio(m,baseline):return float(sum(w*m[k]/max(baseline[k],1e-12) for w,k in zip(WEIGHTS,NAMES)))
+def ratio(m,baseline):return float(sum(w*metric_ratio(m[k],baseline[k]) for w,k in zip(WEIGHTS,NAMES)))
 
 
 def feature_frame(panel,cutoff,cache,training=True):
@@ -214,16 +327,16 @@ def fold(out,origin,sales,stock,names):
     report=dict(origin=origin,inner_selection_origin=str(selection.date()),members=names,iterations=iterations,
                 rows=len(frame),pairs=len(frame[KEY].drop_duplicates()),history_end=origin,
                 seconds=round(time.perf_counter()-started,3),
-                peak_process_gib=psutil.Process().memory_info().peak_wset/2**30,
+                **memory_report(),
                 files={p.relative_to(directory).as_posix():sha(p) for p in files})
     write(directory/'complete.json',report)
     print('FOLD COMPLETE',origin,report['seconds'],flush=True)
     return frame,values,report
 
 
-def evaluate_recipes(frame,values,grid):
+def evaluate_recipes(frame,values,grid,champion_recipe=None):
     y=frame.actual.to_numpy(float);codes,_=pd.factorize(pd.MultiIndex.from_frame(frame[KEY]))
-    base_recipe={'source':'base','post':{'round_int':True}}
+    base_recipe=champion_recipe or read(ROOT/'model/config.json')['model_params']['recipe']
     base=fast_metrics(y,recipe_prediction(values,frame,base_recipe),codes)
     results={}
     for i,(key,recipe) in enumerate(grid.items()):
@@ -234,47 +347,82 @@ def evaluate_recipes(frame,values,grid):
 
 def development(out,protocol):
     if (out/'selection.json').exists():
-        if sha(out/'selection.json')!=(out/'selection.sha256').read_text().strip():raise ValueError('Selection changed')
+        verify_selection(out, protocol)
         print('Frozen selection already exists',flush=True);return
     grid=read(out/'candidate_grid.json');sales,stock=load_data();folds={}
+    champion_recipe=protocol['champion']['recipe']
+    names=sorted(set(MEMBERS)|recipe_members(champion_recipe))
     for origin in protocol['development_origins']:
-        frame,values,report=fold(out,origin,sales,stock,MEMBERS)
-        base,results=evaluate_recipes(frame,values,grid)
+        frame,values,report=fold(out,origin,sales,stock,names)
+        base,results=evaluate_recipes(frame,values,grid,champion_recipe)
         write(out/origin/'development_metrics.json',dict(baseline=base,results=results))
         folds[origin]=dict(baseline=base,results=results)
         del frame,values;gc.collect()
     summary={}
     for key,recipe in grid.items():
-        ratios=[v['results'][key]['local_ratio'] for v in folds.values()]
-        metric_ratios={k:float(np.mean([v['results'][key]['metrics'][k]/max(v['baseline'][k],1e-12) for v in folds.values()])) for k in NAMES}
-        improved=sum(v<1 for v in metric_ratios.values())
-        max_smape=max(v['results'][key]['metrics']['smape']/v['baseline']['smape'] for v in folds.values())
-        eligible=np.mean(ratios)<=.995 and metric_ratios['smape']<=1.01 and improved>=3 and max_smape<=1.05
-        summary[key]=dict(recipe=recipe,mean_ratio=float(np.mean(ratios)),per_origin_ratio=ratios,
-                          metric_ratios=metric_ratios,improved_metrics=improved,eligible=bool(eligible))
+        assessment=assess_candidate({o:v['results'][key]['metrics'] for o,v in folds.items()},
+                                    {o:v['baseline'] for o,v in folds.items()}, protocol['guardrails'])
+        summary[key]=dict(recipe=recipe, **assessment)
     eligible=[(k,v) for k,v in summary.items() if v['eligible']]
-    baseline_key=next(k for k,v in grid.items() if v=={'source':'base','post':{'round_int':True}})
+    baseline_key=protocol['champion_grid_key']
     selected=min(eligible,key=lambda item:(item[1]['mean_ratio'],item[0]))[0] if eligible else baseline_key
     selection=dict(selected_id=selected,selected_recipe=grid[selected],development_origins=protocol['development_origins'],
                    results=summary,protocol_sha256=sha(out/'protocol.json'),grid_sha256=sha(out/'candidate_grid.json'),
+                   champion_recipe=champion_recipe,
                    previous_periods_inspected=True)
-    write(out/'selection.json',selection);(out/'selection.sha256').write_text(sha(out/'selection.json')+'\n')
+    freeze_record(out/'selection.json',selection)
     print('SELECTED',json.dumps(summary[selected]),flush=True)
 
 
+def verify_selection(out, protocol):
+    selection=frozen_record(out/'selection.json')
+    if selection['protocol_sha256']!=sha(out/'protocol.json'):
+        raise ValueError('Selection protocol changed')
+    if selection['grid_sha256']!=sha(out/'candidate_grid.json'):
+        raise ValueError('Selection grid changed')
+    grid=read(out/'candidate_grid.json')
+    if grid.get(selection['selected_id'])!=selection['selected_recipe']:
+        raise ValueError('Selection recipe differs from frozen grid')
+    if selection.get('champion_recipe')!=protocol['champion']['recipe']:
+        raise ValueError('Selection champion changed')
+    return selection
+
+
+def verify_decision(out, protocol):
+    selection=verify_selection(out,protocol)
+    decision=frozen_record(out/'decision.json')
+    if decision['selection_sha256']!=sha(out/'selection.json'):
+        raise ValueError('Decision selection changed')
+    if decision['protocol_sha256']!=sha(out/'protocol.json'):
+        raise ValueError('Decision protocol changed')
+    if decision['selected_recipe']!=selection['selected_recipe']:
+        raise ValueError('Decision recipe differs from frozen selection')
+    if decision.get('champion_recipe')!=protocol['champion']['recipe']:
+        raise ValueError('Decision champion changed')
+    if decision['confirmation_origin']!=protocol['confirmation_origin']:
+        raise ValueError('Decision origin differs from protocol')
+    expected=assess_candidate({protocol['confirmation_origin']:decision['candidate']},
+                              {protocol['confirmation_origin']:decision['baseline']},protocol['guardrails'])
+    if bool(decision['promote'])!=expected['eligible']:
+        raise ValueError('Decision promotion differs from frozen guardrails')
+    return decision
+
+
 def confirmation(out,protocol):
-    selection=read(out/'selection.json')
-    if sha(out/'selection.json')!=(out/'selection.sha256').read_text().strip():raise ValueError('Selection changed')
-    if selection['protocol_sha256']!=sha(out/'protocol.json'):raise ValueError('Selection protocol changed')
-    if (out/'decision.json').exists():print('One confirmation already completed');return
-    recipe=selection['selected_recipe'];names=sorted({'base',recipe['source'],recipe.get('aux')}-{'tsb','sba',None})
+    selection=verify_selection(out, protocol)
+    if (out/'decision.json').exists() or (out/'decision.sha256').exists():
+        verify_decision(out,protocol)
+        print('One confirmation already completed');return
+    recipe=selection['selected_recipe'];champion_recipe=protocol['champion']['recipe']
+    names=sorted(recipe_members(champion_recipe)|recipe_members(recipe))
     sales,stock=load_data();origin=protocol['confirmation_origin']
     frame,values,report=fold(out,origin,sales,stock,names)
     y=frame.actual.to_numpy(float);codes,_=pd.factorize(pd.MultiIndex.from_frame(frame[KEY]))
-    base=fast_metrics(y,recipe_prediction(values,frame,{'source':'base','post':{'round_int':True}}),codes)
+    champion_pred=recipe_prediction(values,frame,champion_recipe)
+    base=fast_metrics(y,champion_pred,codes)
     pred=recipe_prediction(values,frame,recipe);candidate=fast_metrics(y,pred,codes)
-    score=ratio(candidate,base);improved=sum(candidate[k]<base[k] for k in NAMES)
-    promote=score<=.995 and candidate['smape']<=base['smape']*1.01 and improved>=3
+    assessment=assess_candidate({origin:candidate},{origin:base},protocol['guardrails'])
+    score=assessment['mean_ratio'];improved=assessment['improved_metrics'];promote=assessment['eligible']
     segment_report={}
     from app.ru_calendar import weekly_calendar
     weekcal=weekly_calendar(frame.week.unique(),origin)
@@ -284,39 +432,70 @@ def confirmation(out,protocol):
         if not mask.any():continue
         c,_=pd.factorize(pd.MultiIndex.from_frame(frame.loc[mask,KEY]))
         segment_report[name]=dict(rows=int(mask.sum()),candidate=fast_metrics(y[mask],pred[mask],c),
-            baseline=fast_metrics(y[mask],recipe_prediction(values,frame,{'source':'base','post':{'round_int':True}})[mask],c))
+            baseline=fast_metrics(y[mask],champion_pred[mask],c))
     baselines={name:fast_metrics(y,raw,codes) for name,raw in [('zero',np.zeros(len(frame))),('last_week',frame.last_week.to_numpy(float)),('mean4',frame.mean_week_4.to_numpy(float)),('mean8',frame.mean_week_8.to_numpy(float)),('mean13',frame.mean_week_13.to_numpy(float))]}
     decision=dict(promote=bool(promote),selected_recipe=recipe,confirmation_origin=origin,
+                  champion_recipe=champion_recipe, assessment=assessment,
                   baseline=base,candidate=candidate,local_ratio=score,improved_metrics=improved,
                   baselines=baselines,segments=segment_report,selection_sha256=sha(out/'selection.json'),
                   protocol_sha256=sha(out/'protocol.json'),confirmation_previously_inspected=True,
                   final_action='refit_selected_candidate' if promote else 'retain_previous_production')
-    write(out/'decision.json',decision);print('CONFIRMATION',json.dumps(decision),flush=True)
+    freeze_record(out/'decision.json',decision);print('CONFIRMATION',json.dumps(decision),flush=True)
+
+
+def verify_final_artifact(out, protocol, decision=None):
+    decision=verify_decision(out,protocol) if decision is None else decision
+    record=frozen_record(out/'final_training.json')
+    target=out/'final';config=read(target/'config.json')
+    expected_provenance=dict(research_protocol_sha256=sha(out/'protocol.json'),
+                             selection_sha256=sha(out/'selection.json'),
+                             decision_sha256=sha(out/'decision.json'),
+                             history_cutoff=protocol['history_cutoff'])
+    if config.get('provenance')!=expected_provenance:
+        raise ValueError('Final artifact provenance differs from frozen stages')
+    if config.get('model_params',{}).get('recipe')!=decision['selected_recipe']:
+        raise ValueError('Final artifact recipe differs from decision')
+    if config.get('model_type')!='research':
+        raise ValueError('Final artifact model type differs from runner')
+    for filename, field, record_field in (
+        (config['model_file'],'model_artifact_sha256','model_sha256'),
+        (config['preprocessor_file'],'preprocessor_sha256','preprocessor_sha256')):
+        digest=sha(target/filename)
+        if digest!=config[field] or digest!=record[record_field]:
+            raise ValueError('Final artifact changed: '+filename)
+    if sha(target/'config.json')!=record['config_sha256']:
+        raise ValueError('Final config changed')
+    return record
 
 
 def final_refit(out,protocol):
-    decision=read(out/'decision.json')
-    if decision['selection_sha256']!=sha(out/'selection.json'):raise ValueError('Changed selection')
+    decision=verify_decision(out,protocol)
     if not decision['promote']:
         print('Candidate not promoted; original production preserved',flush=True);return
     target=out/'final'
-    if (target/'config.json').exists():print('Final artifact already exists');return
-    sales,stock=load_data();end=pd.Timestamp('2026-07-26')
+    if (out/'final_training.json').exists() or (out/'final_training.sha256').exists():
+        verify_final_artifact(out,protocol,decision)
+        print('Final artifact already exists and is verified');return
+    if target.exists() and any(target.iterdir()):
+        raise ValueError('Incomplete final artifact; preserve it and choose a fresh run directory')
+    sales,stock=load_data();end=pd.Timestamp(protocol['final_training_end'])
     panel=add_money(build_panel(sales,stock),sales)
     cutoffs=make_cutoffs(panel)[-16:];cache=out/'final-cache'
     train=pd.concat([feature_frame(panel,c,cache) for c in cutoffs],ignore_index=True)
     assert (train.week+pd.Timedelta(days=6)).max()<=end
     origin=protocol['confirmation_origin'];iterations=read(out/origin/'iterations.json')
-    recipe=decision['selected_recipe'];required={recipe['source'],recipe.get('aux')}-{'tsb','sba',None}
+    recipe=decision['selected_recipe'];required=recipe_members(recipe)
     model=WeeklyResearchModel(dict(recipe=recipe,threads=6,estimators=600))
     model.fit(train,train.target.to_numpy(float),n_iterations={k:iterations[k] for k in required})
     config=save_artifact(model,target,end,end,len(train),len(cutoffs),
                 validation=dict(scheme='frozen_research_historical_confirmation',metrics=decision['candidate'],
                                 confirmation_origin=origin,previously_inspected_period=True),
                 provenance=dict(research_protocol_sha256=sha(out/'protocol.json'),selection_sha256=sha(out/'selection.json'),
-                                decision_sha256=sha(out/'decision.json'),history_cutoff='2026-07-26'))
-    write(out/'final_training.json',dict(rows=len(train),cutoffs=len(cutoffs),iterations=model.selected_iterations,
-                                       model_sha256=config['model_artifact_sha256'],preprocessor_sha256=config['preprocessor_sha256']))
+                                decision_sha256=sha(out/'decision.json'),history_cutoff=protocol['history_cutoff']))
+    freeze_record(out/'final_training.json',dict(rows=len(train),cutoffs=len(cutoffs),iterations=model.selected_iterations,
+                                       model_sha256=config['model_artifact_sha256'],preprocessor_sha256=config['preprocessor_sha256'],
+                                       config_sha256=sha(target/'config.json')))
+    verify_final_artifact(out,protocol,decision)
     print('FINAL REFIT COMPLETE',config['model_artifact_sha256'],flush=True)
 
 

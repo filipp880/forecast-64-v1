@@ -14,6 +14,7 @@ from app.metrics import compute_all_metrics
 from app.predictor import Predictor
 from baseline import pairs_at, truth_for
 from train import predictions_for
+from app.csv_io import read_csv_checked
 
 HORIZON_BUCKETS = ((1, 3), (4, 6), (7, 9))
 
@@ -33,28 +34,25 @@ def main(argv=None):
         ap.error("Competition evaluation cannot use facts after 2026-07-26")
     predictor = Predictor(args.model_dir).load()
     config, model = predictor.config, predictor.model
-    boundaries = [pd.Timestamp(config[k]) for k in ("training_data_end", "selection_data_end") if config.get(k)]
-    if not boundaries:
+    if not all(config.get(k) for k in ("training_data_end", "selection_data_end")):
         raise ValueError("Artifact lacks temporal provenance")
+    boundaries = [pd.Timestamp(config[k]) for k in ("training_data_end", "selection_data_end")]
     if not args.allow_in_sample and any(pd.Timestamp(o) < max(boundaries) for o in args.origins):
         raise ValueError("Artifact saw facts after the evaluation origin; refit a past-only copy or explicitly pass --allow-in-sample")
-    sales, stock = truncate_history(pd.read_csv(args.sales, parse_dates=["date"]), pd.read_csv(args.stock, parse_dates=["date"]), args.history_cutoff)
+    sales, stock = truncate_history(read_csv_checked(args.sales, parse_dates=["date"]), read_csv_checked(args.stock, parse_dates=["date"]), args.history_cutoff)
     panel = build_panel(sales, stock)
-    if model.name == "research":
-        from app.enhancements import add_money
-        panel = add_money(panel, sales)
-    required = pd.read_csv(args.required_pairs, dtype=str) if args.required_pairs else None
+    required = read_csv_checked(args.required_pairs, dtype=str) if args.required_pairs else None
     results = {}
     post = config.get("postprocess", {})
     for origin in args.origins:
         cut = pd.Timestamp(origin)
         pairs = pairs_at(panel, cut) if required is None else required
-        f = make_features(panel, cut, range(1, HORIZON + 1), int(config.get("lookback_days", 180)), required_pairs=pairs)
-        if model.name == "research":
-            from app.enhancements import augment_features
-            f = augment_features(panel, f, cut)
-        pred = f[["week", *KEY]].copy()
-        pred["quantity"] = predictions_for(model, f, post.get("zero_threshold", 0.0), post.get("round_int", False), config.get("calibration"))
+        past_sales, past_stock = truncate_history(sales, stock, cut)
+        # The shared serving path builds features only on the origin's history.
+        # Provenance above controls whether this is allowed as an OOS evaluation.
+        pred = predictor.predict(past_sales, past_stock, required_pairs=pairs,
+                                 history_cutoff=cut, allow_in_sample=args.allow_in_sample)
+        pred["week"] = pd.to_datetime(pred.week)
         truth = truth_for(panel, cut, HORIZON, pairs)
         record = {"metrics": compute_all_metrics(truth, pred), "horizon": {}}
         weeks = sorted(truth.week.unique())

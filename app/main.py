@@ -12,7 +12,8 @@ CORS открыт для браузерных клиентов: по умолч�
 
 from __future__ import annotations
 
-import io
+import asyncio
+from contextlib import asynccontextmanager
 import logging
 import os
 from pathlib import Path
@@ -26,6 +27,7 @@ from starlette.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from .predictor import ForecastNotReadyError, ModelNotReadyError, Predictor
+from .csv_io import CsvHeaderError, read_csv_checked
 from .validators import validate_sales_csv, validate_stock_csv
 
 logging.basicConfig(level=logging.INFO)
@@ -34,11 +36,27 @@ logger = logging.getLogger("forecast_api")
 MODEL_DIR = Path(os.environ.get("MODEL_DIR", "model"))
 CORS_ORIGINS = [origin.strip() for origin in os.environ.get("CORS_ORIGINS", "*").split(",") if origin.strip()]
 CSV_CHUNK_ROWS = 200_000
+MAX_CONCURRENT_PREDICTIONS = int(os.environ.get("MAX_CONCURRENT_PREDICTIONS", "1"))
+if MAX_CONCURRENT_PREDICTIONS < 1:
+    raise ValueError("MAX_CONCURRENT_PREDICTIONS must be positive")
+# Includes CSV parsing and validation, which also allocate substantial memory.
+prediction_slots = asyncio.Semaphore(MAX_CONCURRENT_PREDICTIONS)
+
+
+@asynccontextmanager
+async def lifespan(application):
+    # A semaphore belongs to its event loop. Recreate it for a new app lifecycle
+    # (also permits multiple sequential TestClient/server runs in one process).
+    global prediction_slots
+    prediction_slots = asyncio.Semaphore(MAX_CONCURRENT_PREDICTIONS)
+    yield
+
 
 app = FastAPI(
     title="Hackathon Forecast API",
     description="Прогноз недельных сумм продаж на 9 полных недель со следующего понедельника",
     version="2.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -89,18 +107,35 @@ def _iter_json(df: pd.DataFrame, chunk_rows: int = CSV_CHUNK_ROWS) -> Iterator[s
     yield "]"
 
 
-async def _read_upload(upload: UploadFile, name: str):
-    """Читает и парсит CSV из multipart-запроса. Возвращает (df, ошибка)."""
-    content = await upload.read()
-    if not content.strip():
-        return None, _error(400, f"Пустой файл: {name}")
+def _read_upload_sync(upload: UploadFile, name: str):
+    """Parse the spooled upload in a worker, without copying it to one bytes object."""
     try:
-        df = pd.read_csv(io.BytesIO(content), dtype={"warehouse_name": "string", "article": "string", "char_article": "string"})
+        upload.file.seek(0)
+        df = read_csv_checked(upload.file)
+    except CsvHeaderError as exc:
+        return None, _error(422, f"Неверный заголовок CSV ({name}): {exc}")
+    except pd.errors.EmptyDataError:
+        return None, _error(400, f"Пустой файл: {name}")
     except Exception as exc:
         return None, _error(400, f"Ошибка парсинга CSV ({name}): {exc}")
     if df.empty:
         return None, _error(400, f"Пустой файл: {name}")
     return df, None
+
+
+async def _read_upload(upload: UploadFile, name: str):
+    return await run_in_threadpool(_read_upload_sync, upload, name)
+
+
+def _prepare_inputs_sync(sales: UploadFile, stock: UploadFile):
+    df_sales, error = _read_upload_sync(sales, "sales")
+    if error is not None:
+        return None, None, error
+    df_stock, error = _read_upload_sync(stock, "stock")
+    if error is not None:
+        return None, None, error
+    errors = validate_sales_csv(df_sales) + validate_stock_csv(df_stock)
+    return df_sales, df_stock, _error(422, "; ".join(errors)) if errors else None
 
 
 @app.exception_handler(RequestValidationError)
@@ -114,6 +149,7 @@ async def root():
         "service": "Hackathon Forecast API",
         "endpoints": [
             "GET /health",
+            "GET /ready",
             "POST /predict",
             "GET /predict?article=&warehouse=",
             "GET /predict/all?format=csv|json",
@@ -126,29 +162,30 @@ async def health():
     return {"status": "ok", "model_loaded": predictor.is_loaded}
 
 
+@app.get("/ready")
+async def ready():
+    """Readiness fails when the process is alive but its model is unavailable."""
+    if not predictor.is_loaded:
+        return _error(503, "Модель не загружена", code="MODEL_NOT_READY")
+    return {"status": "ready", "model_loaded": True}
+
+
 @app.post("/predict")
 async def predict_post(
     sales: UploadFile = File(...),
     stock: UploadFile = File(...),
 ):
     """Принимает sales + stock и возвращает week,warehouse_name,article,quantity на 9 недель."""
-    df_sales, error = await _read_upload(sales, "sales")
-    if error is not None:
-        return error
-    df_stock, error = await _read_upload(stock, "stock")
-    if error is not None:
-        return error
-
-    errors = validate_sales_csv(df_sales) + validate_stock_csv(df_stock)
-    if errors:
-        return _error(422, "; ".join(errors))
-
-    try:
-        forecast = await run_in_threadpool(predictor.predict, df_sales, df_stock)
-    except ModelNotReadyError as exc:
-        return _error(503, str(exc), code="MODEL_NOT_READY")
-    except ValueError as exc:
-        return _error(400, str(exc))
+    async with prediction_slots:
+        df_sales, df_stock, error = await run_in_threadpool(_prepare_inputs_sync, sales, stock)
+        if error is not None:
+            return error
+        try:
+            forecast = await run_in_threadpool(predictor.predict, df_sales, df_stock)
+        except ModelNotReadyError as exc:
+            return _error(503, str(exc), code="MODEL_NOT_READY")
+        except ValueError as exc:
+            return _error(400, str(exc))
 
     return _csv_response(forecast, "forecast.csv")
 
@@ -178,7 +215,7 @@ async def predict_get(
 
 @app.get("/predict/all")
 async def predict_all(format: str = Query("csv", description="Формат ответа: csv или json")):
-    """Весь прогноз целиком (наблюдаемые входные пары × 9 недель)."""
+    """Весь последний прогноз, включая требуемые пары без совместной истории."""
     if format not in ("csv", "json"):
         return _error(400, "Параметр format должен быть 'csv' или 'json'")
 

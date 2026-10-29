@@ -1,0 +1,35 @@
+name: Contract and serving checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+      - run: python scripts/verify_release.py
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t forecast-api .
+      - name: Offline model readiness
+        run: |
+          docker run --detach --name forecast-api --network none forecast-api
+          trap 'docker logs forecast-api; docker rm -f forecast-api' EXIT
+          for attempt in $(seq 1 30); do
+            if docker exec forecast-api python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready')"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1

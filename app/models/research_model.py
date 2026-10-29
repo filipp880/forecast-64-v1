@@ -134,7 +134,50 @@ def quantize(raw,features,spec):
     return raw
 
 
-def recipe_prediction(values,features,recipe):
+def recipe_member_names(recipe):
+    names = {recipe['source'], recipe.get('aux')} - {'tsb', 'sba', None}
+    for segment in recipe.get('segments', []):
+        if segment.get('action') != 'zero':
+            names.update(recipe_member_names(segment['recipe']))
+    return names
+
+
+def validate_segments(recipe):
+    """Past-demand routing ranges are explicit, non-overlapping, and half-open."""
+    segments = recipe.get('segments', [])
+    if not isinstance(segments, list):
+        raise ValueError('segments must be a list')
+    ranges = []
+    for segment in segments:
+        allowed = {'name', 'min_weekly_mean', 'max_weekly_mean', 'recipe', 'blend_weight', 'keep_base_mask', 'keep_base_zeros', 'action'}
+        if set(segment) - allowed:
+            raise ValueError('Unknown segment fields')
+        lower = float(segment.get('min_weekly_mean', 0.))
+        upper = float(segment['max_weekly_mean']) if segment.get('max_weekly_mean') is not None else np.inf
+        weight = float(segment.get('blend_weight', 1.))
+        if not np.isfinite(lower) or lower < 0 or upper <= lower or np.isnan(upper):
+            raise ValueError('Invalid past-demand segment range')
+        if not np.isfinite(weight) or not 0 <= weight <= 1:
+            raise ValueError('Segment blend_weight must be in [0,1]')
+        if not isinstance(segment.get('keep_base_mask', False), bool):
+            raise ValueError('keep_base_mask must be boolean')
+        if not isinstance(segment.get('keep_base_zeros', False), bool):
+            raise ValueError('keep_base_zeros must be boolean')
+        if segment.get('keep_base_mask') and segment.get('keep_base_zeros'):
+            raise ValueError('Specify only one zero-mask policy')
+        if segment.get('action') not in (None, 'zero'):
+            raise ValueError('Unknown segment action')
+        if segment.get('action') != 'zero' and not isinstance(segment.get('recipe'), dict):
+            raise ValueError('Segment recipe is required')
+        if segment.get('recipe', {}).get('segments'):
+            raise ValueError('Nested segment routing is not supported')
+        ranges.append((lower, upper))
+    ordered = sorted(ranges)
+    if any(left[1] > right[0] for left, right in zip(ordered, ordered[1:])):
+        raise ValueError('Past-demand segment ranges overlap')
+
+
+def _single_recipe_prediction(values,features,recipe):
     source=recipe['source'];post=recipe.get('post',{})
     if source in ('tsb','sba'):
         raw=features[source+'_week'].to_numpy(float)*post.get('scale',1.)
@@ -159,20 +202,52 @@ def recipe_prediction(values,features,recipe):
     return quantize(raw,features,post)
 
 
+def recipe_prediction(values,features,recipe):
+    validate_segments(recipe)
+    base = _single_recipe_prediction(values, features, recipe)
+    if not recipe.get('segments'):
+        return base
+    result = base.copy()
+    weekly = 7 * features.mean_28.to_numpy(float)
+    for segment in recipe['segments']:
+        lower = float(segment.get('min_weekly_mean', 0.))
+        upper = float(segment['max_weekly_mean']) if segment.get('max_weekly_mean') is not None else np.inf
+        mask = (weekly >= lower) & (weekly < upper)
+        if not mask.any():
+            continue
+        alternate = np.zeros(len(base)) if segment.get('action') == 'zero' else _single_recipe_prediction(values, features, segment['recipe'])
+        weight = float(segment.get('blend_weight', 1.))
+        routed = (1-weight)*base + weight*alternate
+        if segment.get('keep_base_mask', False):
+            routed = np.where(base > 0, np.maximum(routed, 1e-9), 0.)
+        elif segment.get('keep_base_zeros', False):
+            routed = np.where(base > 0, routed, 0.)
+        result[mask] = routed[mask]
+    if not np.isfinite(result).all() or (result < 0).any():
+        raise ValueError('Segmented recipe returned invalid quantities')
+    return result
+
+
 class WeeklyResearchModel(BaseForecastModel):
     name='research';file_suffix='.pkl';target_transform='none';supports_early_stopping=True
 
     def __init__(self,params=None):
         super().__init__(params)
-        self.members={};self.recipe=self.params.get('recipe',{'source':'all','post':{'round_int':True}})
+        self.members={};self.recipe=self.params.setdefault('recipe',{'source':'all','post':{'round_int':True}})
 
     def fit(self,x_train,y_train,x_valid=None,y_valid=None,early_stopping_rounds=None,n_iterations=None):
+        validate_segments(self.recipe)
         train=x_train.assign(target=y_train)
         valid=x_valid.assign(target=y_valid) if x_valid is not None else None
-        names={self.recipe['source'],self.recipe.get('aux')}-{'tsb','sba',None}
+        names=recipe_member_names(self.recipe)
         for name in sorted(names):
-            self.members[name]=fit_member(name,train,valid,iterations=(n_iterations or {}).get(name),
-                                        threads=int(self.params.get('threads',6)),estimators=int(self.params.get('estimators',600)))
+            if name in self.params.get('expert_specs', {}):
+                from .metric_experts import MetricExpertPart
+                self.members[name] = MetricExpertPart(self.params['expert_specs'][name],
+                    int(self.params.get('threads',6))).fit(train,valid,(n_iterations or {}).get(name))
+            else:
+                self.members[name]=fit_member(name,train,valid,iterations=(n_iterations or {}).get(name),
+                                            threads=int(self.params.get('threads',6)),estimators=int(self.params.get('estimators',600)))
         return self
 
     def predict(self,features):
@@ -189,9 +264,15 @@ class WeeklyResearchModel(BaseForecastModel):
         model=pickle.loads(Path(path).read_bytes())
         if not isinstance(model,cls):raise ValueError('Invalid research model payload')
         if model.recipe!=model.params.get('recipe'):raise ValueError('Recipe metadata mismatch')
+        validate_segments(model.recipe)
         return model
 
     def check_schema(self):
+        if set(self.members) != recipe_member_names(self.recipe):
+            raise ValueError('Research member set differs from recipe')
+        for name, spec in self.params.get('expert_specs', {}).items():
+            if name not in self.members or getattr(self.members[name], 'spec', None) != spec:
+                raise ValueError('Metric expert specification differs from recipe member')
         def check(model):
             if isinstance(model,BlendForecastModel):check(model.hurdle);check(model.lgbm)
             elif isinstance(model,GroupPart):

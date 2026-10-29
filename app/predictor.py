@@ -51,7 +51,13 @@ class Predictor:
                         feature_columns=FEATURE_COLUMNS, cat_features=CAT_FEATURES)
         if self.config.get("model_type") == "research":
             from .enhancements import enhanced_spec, feature_columns
-            required.update(preprocessing_version=4,feature_columns=feature_columns(),enhancements=enhanced_spec())
+            segmented = bool(self.config.get('model_params', {}).get('recipe', {}).get('segments'))
+            required.update(preprocessing_version=6 if segmented else 4,
+                            feature_columns=feature_columns(),enhancements=enhanced_spec())
+            if self.config.get('model_params', {}).get('expert_specs'):
+                from .sequence_features import sequence_spec, combined_feature_columns
+                required.update(preprocessing_version=7, feature_columns=combined_feature_columns(),
+                                metric_experts=sequence_spec())
         if self.config.get("model_type") == "ideas":
             from .enhancements import enhanced_spec, feature_columns
             from .ideas_features import GROUPS, ideas_columns, ideas_spec
@@ -74,7 +80,10 @@ class Predictor:
         spec = pickle.loads(preprocessor)
         expected_spec = preprocessing_spec(lookback_days=int(self.config.get("lookback_days", LOOKBACK_DAYS)))
         if model_type == "research":
-            expected_spec.update(schema_version=4,feature_columns=required["feature_columns"],enhancements=required["enhancements"])
+            expected_spec.update(schema_version=required['preprocessing_version'],
+                                 feature_columns=required["feature_columns"],enhancements=required["enhancements"])
+            if 'metric_experts' in required:
+                expected_spec['metric_experts'] = required['metric_experts']
         if model_type == "ideas":
             expected_spec.update(schema_version=5,feature_columns=required['feature_columns'],
                                  enhancements=required['enhancements'],ideas=required['ideas'])
@@ -114,10 +123,17 @@ class Predictor:
             if not date or pd.Timestamp(date) > pd.Timestamp(cutoff):
                 raise ValueError(f"Модель использовала данные после разрешённой отсечки: {field}={date}")
 
-    def predict(self, df_sales, df_stock, *, history_cutoff=None, first_week=None, required_pairs=None):
+    def predict(self, df_sales, df_stock, *, history_cutoff=None, first_week=None, required_pairs=None,
+                allow_in_sample=False):
+        """Predict at the input end, or an explicit origin.
+
+        ``allow_in_sample`` is for explicitly labelled evaluation diagnostics;
+        serving and submission generation retain the provenance check.
+        """
         self.ensure_loaded()
         if history_cutoff is not None:
-            self.assert_history_compatible(history_cutoff)
+            if not allow_in_sample:
+                self.assert_history_compatible(history_cutoff)
             df_sales, df_stock = truncate_history(df_sales, df_stock, history_cutoff)
         if df_sales.empty:
             raise ValueError("Нет продаж в разрешённой истории")
@@ -125,20 +141,14 @@ class Predictor:
         # Future inventory is ignored in both API and competition modes.
         df_stock = df_stock.loc[pd.to_datetime(df_stock.date) <= cutoff]
         first = pd.Timestamp(first_week) if first_week is not None else next_week_start(cutoff)
-        pairs = normalized_pairs(required_pairs if required_pairs is not None else df_sales[KEY].drop_duplicates())
-        panel = build_panel(df_sales, df_stock, history_end=cutoff)
-        if getattr(self.model,"name",None) in ("research", "ideas"):
-            from .enhancements import add_money
-            panel = add_money(panel, df_sales)
-        features = make_features(panel, cutoff, lookback_days=int(self.config.get("lookback_days", LOOKBACK_DAYS)),
-                                 first_week=first, required_pairs=pairs)
-        if getattr(self.model,"name",None) in ("research", "ideas"):
-            from .enhancements import augment_features
-            features = augment_features(panel, features, cutoff)
-        if getattr(self.model,"name",None) == "ideas":
-            from .ideas_features import augment_ideas
-            features = augment_ideas(panel, features, cutoff)
-            features['feature_origin'] = pd.Timestamp(cutoff)
+        from .pipeline import prepare_panel, feature_frame, postprocess_fallback
+        from .coverage import cartesian_pairs, complete_required_forecast
+        pairs = normalized_pairs(required_pairs) if required_pairs is not None else cartesian_pairs(df_sales)
+        model_type = getattr(self.model, "name", None)
+        panel = prepare_panel(df_sales, df_stock, model_type, getattr(self.model, "params", {}), cutoff)
+        features = feature_frame(panel, cutoff, model_type,
+                                 lookback_days=int(self.config.get("lookback_days", LOOKBACK_DAYS)), first_week=first,
+                                 model_params=getattr(self.model,'params',{}))
         from .calibration import forecast_quantities
         post = self.config.get("postprocess", {})
         predictions = forecast_quantities(self.model, features, float(post.get("zero_threshold", 0)),
@@ -147,13 +157,8 @@ class Predictor:
         forecast["week"] = forecast.week.dt.strftime("%Y-%m-%d")
         forecast["quantity"] = predictions.astype(float)
         forecast = forecast.sort_values(["week", *KEY]).reset_index(drop=True)
-        if required_pairs is None:
-            from .coverage import complete_cartesian_forecast
-            round_fallback = bool(post.get('round_int',False))
-            if getattr(self.model,'name',None)=='research':
-                round_fallback = self.model.recipe.get('post',{}).get('round_int',True)
-            if getattr(self.model,'name',None)=='ideas':round_fallback=True
-            forecast,pairs,_ = complete_cartesian_forecast(forecast,df_sales,cutoff,first,round_fallback)
+        forecast,pairs,_ = complete_required_forecast(forecast,df_sales,cutoff,first,pairs,
+            fallback_transform=lambda frame: postprocess_fallback(self.model,self.config,frame))
         validate_forecast(forecast, pairs, first)
         self._cached_forecast = forecast
         return forecast
