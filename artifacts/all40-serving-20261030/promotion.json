@@ -1,0 +1,35 @@
+{
+  "published_locally": true,
+  "network_published": false,
+  "training_executed": false,
+  "backup": "E:\\Dev_Cpp\\forecast-64-v1\\artifacts\\all40-serving-20261030\\prior-root-release",
+  "model_sha256": "201c6b747ee351feff7f2017c2c45820862ad53fa0ab9cd9332425a4945d59fd",
+  "forecast_sha256": "86e4aa6a95efe99ed13cc05a14a015b9aa542ee7097caefac84a5116c18f4c37",
+  "validation": {
+    "valid": true,
+    "rows": 79101,
+    "pairs": 8789,
+    "warehouses": 11,
+    "articles": 799,
+    "weeks": 9,
+    "start": "2026-07-27",
+    "end": "2026-09-21",
+    "last_day": "2026-09-27",
+    "duplicates": 0,
+    "nan": 0,
+    "nonfinite": 0,
+    "negative": 0,
+    "zero_share": 0.550979127950342,
+    "total": 216772.0,
+    "coverage_policy": "explicit_expected_pairs",
+    "forecast_sha256": "86e4aa6a95efe99ed13cc05a14a015b9aa542ee7097caefac84a5116c18f4c37",
+    "required_pairs_sha256": "8d1ebca8207f4e7971084425b159656b7d411cbeb991c77121d1cc8f153d3632",
+    "model_files": {
+      "config.json": "40ce987997acd4ee4bad6943061c69bc34ad670e2c6584cf0838b03d4c4af7e9",
+      "model.pkl": "201c6b747ee351feff7f2017c2c45820862ad53fa0ab9cd9332425a4945d59fd",
+      "preprocessor.pkl": "e9eb1170bfbfa0c33e92bb6c7a505e6572a4a08519106be84fd7d992a110d23a"
+    },
+    "official_pair_coverage_verified": false,
+    "external_key_equality_asserted_by_this_check": false
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "passed": true,
+  "columns": 209,
+  "rows": 78723,
+  "max_difference": 0.0,
+  "input": "original raw CSV, automatically truncated as of March 22; future rows ignored",
+  "training_executed": false
+}

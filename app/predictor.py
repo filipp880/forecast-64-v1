@@ -58,6 +58,10 @@ class Predictor:
                 from .sequence_features import sequence_spec, combined_feature_columns
                 required.update(preprocessing_version=7, feature_columns=combined_feature_columns(),
                                 metric_experts=sequence_spec())
+            if self.config.get('model_params', {}).get('serving_profile')=='all40_v1':
+                from .advanced_features import ADVANCED_COLUMNS, advanced_spec
+                required.update(preprocessing_version=8,feature_columns=ADVANCED_COLUMNS,
+                                advanced_features=advanced_spec())
         if self.config.get("model_type") == "ideas":
             from .enhancements import enhanced_spec, feature_columns
             from .ideas_features import GROUPS, ideas_columns, ideas_spec
@@ -84,6 +88,8 @@ class Predictor:
                                  feature_columns=required["feature_columns"],enhancements=required["enhancements"])
             if 'metric_experts' in required:
                 expected_spec['metric_experts'] = required['metric_experts']
+            if 'advanced_features' in required:
+                expected_spec['advanced_features'] = required['advanced_features']
         if model_type == "ideas":
             expected_spec.update(schema_version=5,feature_columns=required['feature_columns'],
                                  enhancements=required['enhancements'],ideas=required['ideas'])
@@ -149,6 +155,10 @@ class Predictor:
         features = feature_frame(panel, cutoff, model_type,
                                  lookback_days=int(self.config.get("lookback_days", LOOKBACK_DAYS)), first_week=first,
                                  model_params=getattr(self.model,'params',{}))
+        if getattr(self.model,'params',{}).get('serving_profile')=='all40_v1':
+            from .advanced_features import augment_advanced_features
+            del panel
+            features=augment_advanced_features(df_sales,df_stock,features,cutoff)
         from .calibration import forecast_quantities
         post = self.config.get("postprocess", {})
         predictions = forecast_quantities(self.model, features, float(post.get("zero_threshold", 0)),

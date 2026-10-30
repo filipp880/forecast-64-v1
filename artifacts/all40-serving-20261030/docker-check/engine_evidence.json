@@ -1,0 +1,13 @@
+{
+  "image_id": "sha256:8d12a552f48b55e712f45c1b54e1bfdfde43ec75728f8850521f84eb3037caa9",
+  "image_size_bytes": 314854983,
+  "container_id": "b5d82ae7fd4249078dbb8813a50b8cbaf6eb42ac4efe502472458882059dba19",
+  "network_mode": "none",
+  "memory_limit_bytes": 7516192768,
+  "nano_cpus": 6000000000,
+  "oom_killed": false,
+  "health": "healthy",
+  "preexisting_containers_modified": false,
+  "check_container_removed": true,
+  "image_preserved": true
+}

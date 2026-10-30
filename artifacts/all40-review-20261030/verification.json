@@ -1,0 +1,97 @@
+{
+  "verified": true,
+  "training_executed": false,
+  "archive_sha256": "7b4a2e2b3b007f6769fae355a55ff6ceff6e6a558e20f7df58c68df2a1f52218",
+  "archive_files": 2082,
+  "checkpoints_verified": 125,
+  "candidates": 347,
+  "metric_values_recomputed": 3470,
+  "native_prediction_replay": {
+    "2026-01-18": {
+      "rows": 77967,
+      "winner_max_prediction_difference": 0.0
+    },
+    "2026-03-22": {
+      "rows": 78723,
+      "winner_max_prediction_difference": 0.0
+    }
+  },
+  "final_models": {
+    "count_fine": {
+      "iterations": 124,
+      "features": 209,
+      "training_rows": 1160298
+    },
+    "core_event": {
+      "iterations": 218,
+      "features": 49,
+      "training_rows": 1160298
+    },
+    "core_positive": {
+      "iterations": 296,
+      "features": 49,
+      "training_rows": 559326
+    },
+    "core_log": {
+      "iterations": 201,
+      "features": 49,
+      "training_rows": 1160298
+    },
+    "core_mae": {
+      "iterations": 350,
+      "features": 68,
+      "training_rows": 1160298
+    },
+    "core_count": {
+      "iterations": 145,
+      "features": 102,
+      "training_rows": 1160298
+    },
+    "core_recent": {
+      "iterations": 229,
+      "features": 102,
+      "training_rows": 273632
+    }
+  },
+  "best_id": "blend_8ab4d78a8929_round",
+  "weighted_criterion_reduction_percent": 0.617055038670955,
+  "comparison": [
+    {
+      "metric": "smape",
+      "baseline": 61.663711677000784,
+      "winner": 61.31985539640894,
+      "reduction_percent": 0.5576315003433252
+    },
+    {
+      "metric": "wape",
+      "baseline": 48.32702350703807,
+      "winner": 48.12589325216352,
+      "reduction_percent": 0.41618589409971873
+    },
+    {
+      "metric": "rmse",
+      "baseline": 2.567563817028828,
+      "winner": 2.54798448948343,
+      "reduction_percent": 0.7625643972524632
+    },
+    {
+      "metric": "bias",
+      "baseline": 74.04852339101056,
+      "winner": 73.26872175107408,
+      "reduction_percent": 1.0530954625776467
+    },
+    {
+      "metric": "rmsle",
+      "baseline": 0.5194904425905844,
+      "winner": 0.515973831963058,
+      "reduction_percent": 0.6769346150027
+    }
+  ],
+  "independent_confirmation": false,
+  "production_changed": false,
+  "deployment_ready": false,
+  "limitation": "Final components verified; serving integration and full final-window inference still required. Historical windows used for selection.",
+  "fixed_pool_ranks_recomputed": true,
+  "distinct_metric_signatures": 343,
+  "all_five_metrics_improve_on_each_window": true
+}

@@ -3,6 +3,7 @@
 Dockerfile text eol=lf
 *.pkl binary
 model/** -text
+model/config.json -text whitespace=cr-at-eol
 forecast.csv -text whitespace=cr-at-eol
 observed_pairs.csv -text whitespace=cr-at-eol
 required_pairs.csv -text whitespace=cr-at-eol
