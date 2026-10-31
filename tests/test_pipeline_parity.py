@@ -40,12 +40,17 @@ def test_real_model_warm_predictions_independent_of_requested_catalogue():
     pd.testing.assert_frame_equal(partial, default.merge(subset, on=KEY).reset_index(drop=True))
 
 
-def test_unused_money_does_not_break_current_dynamics_model():
+def test_monetary_overflow_follows_selected_feature_contract():
+    from app.pipeline import needs_money
     sales, stock = histories()
     predictor = Predictor(ROOT / "model").load()
     expected = predictor.predict(sales, stock)
     sales["sales_sum"] = 1000.
-    pd.testing.assert_frame_equal(expected, predictor.predict(sales, stock))
+    if needs_money(predictor.model.name, predictor.model.params):
+        with pytest.raises(ValueError, match='Nonfinite monetary exp'):
+            predictor.predict(sales, stock)
+    else:
+        pd.testing.assert_frame_equal(expected, predictor.predict(sales, stock))
 
 
 def test_shared_loader_preserves_leading_zero_ids():

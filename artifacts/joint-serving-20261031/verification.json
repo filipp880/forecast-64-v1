@@ -1,0 +1,59 @@
+{
+  "verified": true,
+  "training_executed": false,
+  "historical": {
+    "2026-01-18": {
+      "daily_features": {
+        "rows": 545769,
+        "columns": 66,
+        "max_difference": 0.0
+      },
+      "daily_native_prediction_max_difference": 0.0,
+      "graph_metrics_match_saved": true,
+      "original_tz_metrics_match": true,
+      "metrics": {
+        "smape": 62.23428222068568,
+        "wape": 47.87737865239618,
+        "rmse": 2.3878784833588926,
+        "bias": 74.05673599869156,
+        "rmsle": 0.5168644225891357
+      },
+      "baseline_source": "frozen origin-specific predictions, never July-fitted weights"
+    },
+    "2026-03-22": {
+      "daily_features": {
+        "rows": 551061,
+        "columns": 66,
+        "max_difference": 0.0
+      },
+      "daily_native_prediction_max_difference": 0.0,
+      "graph_metrics_match_saved": true,
+      "original_tz_metrics_match": true,
+      "metrics": {
+        "smape": 60.24075810750714,
+        "wape": 48.08706298462794,
+        "rmse": 2.6849152670021144,
+        "bias": 71.67026842075221,
+        "rmsle": 0.5132577982315082
+      },
+      "baseline_source": "frozen origin-specific predictions, never July-fitted weights"
+    }
+  },
+  "requirements_metric_reference": "function definitions extracted from original updated requirements",
+  "final_daily_features": {
+    "rows": 552951,
+    "columns": 66,
+    "max_difference": 0.0
+  },
+  "forecast_sha256": "acbfbd096f73a0b1903aa73e1f35c9220a14b9539e596b24221d9abce603601f",
+  "generator": {
+    "exact_submitted_bytes": true,
+    "rows": 79101,
+    "predict_seconds": 54.536673000000064,
+    "repeat_seconds": 53.9319959999998,
+    "excluded_future_rows": {
+      "sales": 13543,
+      "stock": 61683
+    }
+  }
+}

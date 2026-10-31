@@ -41,13 +41,16 @@ def predict_calibrated(model, features, spec):
     return combine(p, m, lg, 7 * features.mean_28.to_numpy(float), features.n_sale_days_90.to_numpy(float), spec)
 
 
-def forecast_quantities(model, features, zero_threshold=0.0, round_int=False, calibration=None):
+def forecast_quantities(model, features, zero_threshold=0.0, round_int=False, calibration=None, *, raw_predictions=None):
     """One serving/evaluation path, including the explicit no-history fallback."""
     from .models import inverse_target, postprocess_forecast
+    if raw_predictions is not None and calibration:
+        raise ValueError('Request-aware raw predictions cannot use blend calibration')
     if calibration:
         predictions = predict_calibrated(model, features, calibration)
     else:
-        predictions = postprocess_forecast(inverse_target(model.predict(features), model.target_transform),
+        raw = model.predict(features) if raw_predictions is None else raw_predictions
+        predictions = postprocess_forecast(inverse_target(raw, model.target_transform),
                                            zero_threshold, round_int)
     if "no_history" in features:
         fallback = postprocess_forecast(features.mean_week_4.to_numpy(float), zero_threshold,

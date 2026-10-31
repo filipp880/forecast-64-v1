@@ -1,0 +1,16 @@
+{
+  "image_id": "sha256:42b893a5fa53605af768ae6e7c72c0e717b9b4101d89af34f2b0d069c0150a28",
+  "image_size_bytes": 314889936,
+  "container_id": "1d7b83e97c9ec80c56e184760f1d8ad5c3ed4b95eeac9164ff644d6c379e389c",
+  "network_mode": "none",
+  "memory_limit_bytes": 7516192768,
+  "nano_cpus": 6000000000,
+  "oom_killed": false,
+  "health": "healthy",
+  "preexisting_containers_modified": false,
+  "http_and_submitted_csv_equal_after_newline_normalization": true,
+  "submitted_csv_sha256": "acbfbd096f73a0b1903aa73e1f35c9220a14b9539e596b24221d9abce603601f",
+  "http_csv_sha256": "c6bc16a42daf6a968feddce8490093b5d42ccd6fb4a877f71ee5d063a29d8e74",
+  "check_container_removed": true,
+  "image_preserved": true
+}

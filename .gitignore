@@ -20,6 +20,8 @@ __pycache__/
 *.py[cod]
 .venv/
 /.venv-all40/
+/.venv-daily-weekly/
+/.venv-weekly-refine/
 venv/
 .pytest_cache/
 .mypy_cache/

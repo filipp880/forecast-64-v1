@@ -189,6 +189,9 @@ def parse_args(argv=None):
         ap.error(str(exc))
     if not isinstance(supplied, dict):
         ap.error("model-params must be a JSON object")
+    if supplied.get('serving_profile') in ('all40_v1', 'joint_v1'):
+        ap.error('Exported ensembles require their original component training and release exporter; '
+                 'train.py cannot refit this serving graph. Existing bundled weights need no training.')
     if args.model_type == "blend":
         params = compact_params(args.estimators)
     elif args.model_type == "hurdle":

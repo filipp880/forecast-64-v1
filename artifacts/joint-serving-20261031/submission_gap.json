@@ -1,0 +1,202 @@
+{
+  "source": "user screenshot, 32 submissions, rounded metrics; not an official machine-readable export",
+  "hidden_truth_available": false,
+  "external_file_hash_confirmed_by_judges": false,
+  "metric_order": [
+    "smape",
+    "wape",
+    "rmse",
+    "bias",
+    "rmsle"
+  ],
+  "metric_weights": [
+    0.5,
+    0.2,
+    0.15,
+    0.1,
+    0.05
+  ],
+  "submitted_files": [
+    {
+      "submission": "daily_candidate_forecast",
+      "file": "artifacts/daily-weekloss-7c8fdc7c3173/daily_candidate_forecast.csv",
+      "score": 0.409677,
+      "ranks_minus_one": [
+        12,
+        9,
+        21,
+        11,
+        13
+      ],
+      "sha256": "f765c5a15d2f694a165cac37e2240581cfc13d37a4c1fb2b1375ff5142bffa23",
+      "csv_validation": {
+        "rows": 79101,
+        "pairs": 8789,
+        "warehouses": 11,
+        "articles": 799,
+        "weeks": 9,
+        "start": "2026-07-27",
+        "end": "2026-09-21",
+        "last_day": "2026-09-27",
+        "duplicates": 0,
+        "nan": 0,
+        "nonfinite": 0,
+        "negative": 0,
+        "zero_share": 0.5508147811026409,
+        "total": 215639.0,
+        "coverage_policy": "explicit_expected_pairs"
+      },
+      "score_recomputed_from_screenshot_ranks": 0.4096774193548387,
+      "raw_metrics": {
+        "smape": 61.555036,
+        "wape": 49.294426,
+        "rmse": 4.163777,
+        "bias": 88.571413,
+        "rmsle": 0.546504
+      }
+    },
+    {
+      "submission": "joint_candidate_forecast",
+      "file": "artifacts/daily-weekloss-review-20261030/joint_candidate_forecast.csv",
+      "score": 0.370968,
+      "ranks_minus_one": [
+        13,
+        5,
+        19,
+        7,
+        9
+      ],
+      "sha256": "acbfbd096f73a0b1903aa73e1f35c9220a14b9539e596b24221d9abce603601f",
+      "csv_validation": {
+        "rows": 79101,
+        "pairs": 8789,
+        "warehouses": 11,
+        "articles": 799,
+        "weeks": 9,
+        "start": "2026-07-27",
+        "end": "2026-09-21",
+        "last_day": "2026-09-27",
+        "duplicates": 0,
+        "nan": 0,
+        "nonfinite": 0,
+        "negative": 0,
+        "zero_share": 0.5545947585997648,
+        "total": 213240.0,
+        "coverage_policy": "explicit_expected_pairs"
+      },
+      "score_recomputed_from_screenshot_ranks": 0.3709677419354838,
+      "raw_metrics": {
+        "smape": 61.556648,
+        "wape": 49.142695,
+        "rmse": 4.157557,
+        "bias": 87.4983,
+        "rmsle": 0.544662
+      }
+    },
+    {
+      "submission": "weekly_forecast_v2",
+      "file": "artifacts/forecasts-to-check-20261030/weekly_forecast_v2.csv",
+      "score": 0.506452,
+      "ranks_minus_one": [
+        15,
+        15,
+        24,
+        10,
+        12
+      ],
+      "sha256": "6beec5cda14dc5cd5034495e4a6f7e1b030ac860f2d8409057ddf69157974cea",
+      "csv_validation": {
+        "rows": 79101,
+        "pairs": 8789,
+        "warehouses": 11,
+        "articles": 799,
+        "weeks": 9,
+        "start": "2026-07-27",
+        "end": "2026-09-21",
+        "last_day": "2026-09-27",
+        "duplicates": 0,
+        "nan": 0,
+        "nonfinite": 0,
+        "negative": 0,
+        "zero_share": 0.5544051276216483,
+        "total": 216226.0,
+        "coverage_policy": "explicit_expected_pairs"
+      },
+      "score_recomputed_from_screenshot_ranks": 0.5064516129032258,
+      "raw_metrics": {
+        "smape": 61.632862,
+        "wape": 49.60834,
+        "rmse": 4.200819,
+        "bias": 87.802409,
+        "rmsle": 0.546065
+      }
+    },
+    {
+      "submission": "joint_forecast_v2",
+      "file": "artifacts/forecasts-to-check-20261030/joint_forecast_v2.csv",
+      "score": 0.403226,
+      "ranks_minus_one": [
+        14,
+        8,
+        18,
+        8,
+        8
+      ],
+      "sha256": "fa7747ad69f81de1a97b7127b9c6d7a50c696affd022845b76ce94760b56543b",
+      "csv_validation": {
+        "rows": 79101,
+        "pairs": 8789,
+        "warehouses": 11,
+        "articles": 799,
+        "weeks": 9,
+        "start": "2026-07-27",
+        "end": "2026-09-21",
+        "last_day": "2026-09-27",
+        "duplicates": 0,
+        "nan": 0,
+        "nonfinite": 0,
+        "negative": 0,
+        "zero_share": 0.5535833933831431,
+        "total": 214308.0,
+        "coverage_policy": "explicit_expected_pairs"
+      },
+      "score_recomputed_from_screenshot_ranks": 0.4032258064516129,
+      "raw_metrics": {
+        "smape": 61.557095,
+        "wape": 49.211246,
+        "rmse": 4.154562,
+        "bias": 87.672584,
+        "rmsle": 0.544563
+      }
+    }
+  ],
+  "distinct_file_contents": true,
+  "local_new_minus_old": {
+    "smape": -0.10265623769629428,
+    "wape": -0.05371253925481767,
+    "rmse": -0.0022077024405837697,
+    "bias": -0.32326100048047124,
+    "rmsle": -0.0007911906203668106
+  },
+  "external_new_minus_old": {
+    "smape": 0.000446999999994091,
+    "wape": 0.06855099999999936,
+    "rmse": -0.002994999999999415,
+    "bias": 0.1742840000000001,
+    "rmsle": -9.899999999996023e-05
+  },
+  "rank_score_delta_contributions": {
+    "smape": 0.016129032258064516,
+    "wape": 0.019354838709677424,
+    "rmse": -0.004838709677419355,
+    "bias": 0.0032258064516129032,
+    "rmsle": -0.0016129032258064516
+  },
+  "rank_score_new_minus_old": 0.032258064516129045,
+  "final_prediction_difference": {
+    "changed_rows": 4340,
+    "max_absolute_difference": 3.0,
+    "mean_absolute_difference": 0.055625086914198305,
+    "total_difference": 1068.0
+  }
+}

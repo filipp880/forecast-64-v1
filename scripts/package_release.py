@@ -21,6 +21,7 @@ def release_files(root):
              "generate_submission.py", "forecast.csv", "forecast.manifest.json", "required_pairs.csv",
              "observed_pairs.csv"}
     names.update(p.name for p in root.glob("requirements*.txt"))
+    names.update(p.name for p in root.glob("train_*.py"))
     for directory in ("app", "tests", ".github"):
         names.update(p.relative_to(root).as_posix() for p in (root / directory).rglob("*")
                      if p.is_file() and "__pycache__" not in p.parts and p.suffix not in (".pyc", ".log"))

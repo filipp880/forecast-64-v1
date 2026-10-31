@@ -1,0 +1,59 @@
+{
+  "runtime": "linux_docker_real_multipart_http",
+  "python": "3.11.18",
+  "network": "Docker --network none; loopback HTTP via docker exec",
+  "input_data_provision": "read-only runtime mount, not part of image",
+  "ready": {
+    "status": "ready",
+    "model_loaded": true
+  },
+  "valid": true,
+  "summary": {
+    "rows": 79101,
+    "pairs": 8789,
+    "warehouses": 11,
+    "articles": 799,
+    "weeks": 9,
+    "start": "2026-07-27",
+    "end": "2026-09-21",
+    "last_day": "2026-09-27",
+    "duplicates": 0,
+    "nan": 0,
+    "nonfinite": 0,
+    "negative": 0,
+    "zero_share": 0.5545947585997648,
+    "total": 213240.0,
+    "coverage_policy": "explicit_expected_pairs"
+  },
+  "post_seconds": [
+    62.848150580999985,
+    58.949551673
+  ],
+  "get_csv_seconds": 0.11641381500001557,
+  "get_json_seconds": 0.07512305000000197,
+  "filters": {
+    "pair": {
+      "rows": 9,
+      "seconds": 0.016784460000025092
+    },
+    "article": {
+      "rows": 99,
+      "seconds": 0.008845530999991524
+    },
+    "warehouse": {
+      "rows": 7191,
+      "seconds": 0.018490073999998913
+    }
+  },
+  "deterministic_bytes": true,
+  "published_forecast_values_equal": true,
+  "csv_sha256": "c6bc16a42daf6a968feddce8490093b5d42ccd6fb4a877f71ee5d063a29d8e74",
+  "csv_get_json_parity": true,
+  "max_concurrent_health_seconds": 1.1326318719999904,
+  "health_requests_during_post": 231,
+  "container_peak_memory_bytes": 3958091776,
+  "service_memory_status": [
+    "VmHWM:\t 3068236 kB",
+    "VmRSS:\t  667660 kB"
+  ]
+}
